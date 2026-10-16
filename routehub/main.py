@@ -348,7 +348,7 @@ def _is_openai_reasoning(model: str) -> bool:
     Returns:
         bool: True for o-series and gpt-5 and later, except chat variants.
     """
-    name = model.lower()
+    name = model.lower().removeprefix("ft:")
     return (
         name.startswith(_OPENAI_REASONING_PREFIXES)
         and "-chat" not in name

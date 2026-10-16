@@ -211,6 +211,29 @@ class TestRequestShaping:
         )
         assert body["reasoning_effort"] == "low"
 
+    def test_fine_tuned_openai_models_route_like_their_base(
+        self, mock_openai
+    ):
+        client, recorder = mock_openai(ok())
+        rh.completion(
+            model="ft:gpt-4o-mini-2024-07-18:acme::abc123",
+            messages=USER,
+            max_tokens=50,
+            client=client,
+        )
+        assert recorder.last_json["model"] == (
+            "ft:gpt-4o-mini-2024-07-18:acme::abc123"
+        )
+        assert recorder.last_json["max_completion_tokens"] == 50
+        rh.completion(
+            model="ft:o4-mini-2025-04-16:acme::def456",
+            messages=USER,
+            temperature=0.2,
+            drop_params=True,
+            client=client,
+        )
+        assert "temperature" not in recorder.last_json
+
     def test_reasoning_models_keep_temperature_one(self, mock_openai):
         client, recorder = mock_openai(ok())
         rh.completion(
