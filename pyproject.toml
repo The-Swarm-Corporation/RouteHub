@@ -37,7 +37,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fast = ["orjson>=3.9"]
+# h2 lets httpx speak HTTP/2, in the range httpx[http2] and httpx2[http2] use.
+fast = ["orjson>=3.9", "h2>=3,<5"]
 
 [project.urls]
 Homepage = "https://github.com/The-Swarm-Corporation/RouteHub"
@@ -77,6 +78,7 @@ line-length = 70
 
 [dependency-groups]
 dev = [
+    "h2>=4.4.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",

@@ -1,13 +1,55 @@
-"""Reusable SDK and HTTP clients, so connections stay pooled across calls."""
+"""Reusable SDK and HTTP clients, so connections stay pooled across calls.
+
+Set ROUTEHUB_HTTP2 to 1, true, yes or on to speak HTTP/2 on calls that do
+not pass http2. The variable is read once, on import.
+"""
 
 import asyncio
+import logging
+import os
 import threading
 from collections import OrderedDict
 from typing import Any, Optional, Union
 
+logger = logging.getLogger("routehub")
+
 _MAX_CLIENTS = 64
 _lock = threading.Lock()
 _clients: "OrderedDict[tuple, Any]" = OrderedDict()
+
+_ON_VALUES = frozenset({"1", "true", "yes", "on"})
+_HTTP2_DEFAULT = (
+    os.environ.get("ROUTEHUB_HTTP2", "").strip().lower() in _ON_VALUES
+)
+# None until HTTP/2 is first requested, then whether h2 imports.
+_h2_installed: Optional[bool] = None
+
+
+def _use_http2(requested: Optional[bool]) -> bool:
+    """Decide whether new clients speak HTTP/2.
+
+    Args:
+        requested (Optional[bool]): The per-call setting; None defers to
+            ROUTEHUB_HTTP2.
+
+    Returns:
+        bool: True when HTTP/2 is wanted and h2 is installed.
+    """
+    global _h2_installed
+    if not (_HTTP2_DEFAULT if requested is None else requested):
+        return False
+    if _h2_installed is None:
+        try:
+            import h2  # noqa: F401
+
+            _h2_installed = True
+        except ImportError:
+            _h2_installed = False
+            logger.warning(
+                "HTTP/2 was requested but h2 is not installed; using "
+                "HTTP/1.1. Install it with: pip install 'routehub[fast]'"
+            )
+    return _h2_installed
 
 
 def _loop_id(is_async: bool) -> Optional[Any]:
@@ -80,6 +122,7 @@ def openai_client(
     api_version: Optional[str] = None,
     organization: Optional[str] = None,
     keepalive_expiry: float = 60.0,
+    http2: Optional[bool] = None,
 ) -> Any:
     """Return a cached OpenAI or Azure OpenAI client.
 
@@ -93,10 +136,12 @@ def openai_client(
         api_version (Optional[str]): Azure API version.
         organization (Optional[str]): OpenAI organization id.
         keepalive_expiry (float): Seconds an idle connection stays pooled.
+        http2 (Optional[bool]): Speak HTTP/2; None defers to ROUTEHUB_HTTP2.
 
     Returns:
         Any: An OpenAI SDK client.
     """
+    http2 = _use_http2(http2)
     key = (
         "openai",
         provider == "azure",
@@ -109,6 +154,7 @@ def openai_client(
         max_retries,
         ssl_verify,
         keepalive_expiry,
+        http2,
     )
 
     def build() -> Any:
@@ -120,7 +166,9 @@ def openai_client(
             else openai.DefaultHttpxClient
         )
         http_client = factory(
-            verify=ssl_verify, limits=_limits(keepalive_expiry)
+            verify=ssl_verify,
+            limits=_limits(keepalive_expiry),
+            http2=http2,
         )
         if provider == "azure":
             cls = (
@@ -152,6 +200,7 @@ def http_client(
     is_async: bool,
     ssl_verify: Union[bool, str],
     keepalive_expiry: float = 60.0,
+    http2: Optional[bool] = None,
 ) -> Any:
     """Return a cached raw HTTP client for native provider adapters.
 
@@ -159,16 +208,19 @@ def http_client(
         is_async (bool): Whether to build the async client.
         ssl_verify (Union[bool, str]): TLS verification flag or CA bundle path.
         keepalive_expiry (float): Seconds an idle connection stays pooled.
+        http2 (Optional[bool]): Speak HTTP/2; None defers to ROUTEHUB_HTTP2.
 
     Returns:
         Any: An httpx-compatible Client or AsyncClient.
     """
+    http2 = _use_http2(http2)
     key = (
         "http",
         is_async,
         _loop_id(is_async),
         ssl_verify,
         keepalive_expiry,
+        http2,
     )
 
     def build() -> Any:
@@ -179,6 +231,7 @@ def http_client(
             verify=ssl_verify,
             follow_redirects=True,
             limits=_limits(keepalive_expiry),
+            http2=http2,
         )
 
     return _cached(key, build)

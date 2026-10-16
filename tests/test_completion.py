@@ -1013,6 +1013,134 @@ class TestClients:
         assert short is not native
         assert short._transport._pool._keepalive_expiry == 5.0
 
+    def test_http2_is_off_by_default(self):
+        from routehub import clients
+
+        clients._clients.clear()
+        sdk = clients.openai_client(
+            "openai",
+            "k",
+            None,
+            is_async=False,
+            max_retries=0,
+            ssl_verify=True,
+        )
+        native = clients.http_client(is_async=False, ssl_verify=True)
+        assert sdk._client._transport._pool._http2 is False
+        assert native._transport._pool._http2 is False
+
+    def test_http2_clients_are_cached_apart(self):
+        pytest.importorskip("h2")
+        from routehub import clients
+
+        clients._clients.clear()
+        http1 = clients.http_client(is_async=False, ssl_verify=True)
+        http2 = clients.http_client(
+            is_async=False, ssl_verify=True, http2=True
+        )
+        sdk = clients.openai_client(
+            "openai",
+            "k",
+            None,
+            is_async=False,
+            max_retries=0,
+            ssl_verify=True,
+            http2=True,
+        )
+        assert http2 is not http1
+        assert http2._transport._pool._http2 is True
+        assert sdk._client._transport._pool._http2 is True
+
+    def test_routehub_http2_env_sets_the_default(self, monkeypatch):
+        pytest.importorskip("h2")
+        from routehub import clients
+
+        monkeypatch.setattr(clients, "_HTTP2_DEFAULT", True)
+        clients._clients.clear()
+        on = clients.http_client(is_async=False, ssl_verify=True)
+        off = clients.http_client(
+            is_async=False, ssl_verify=True, http2=False
+        )
+        assert on._transport._pool._http2 is True
+        assert off._transport._pool._http2 is False
+
+    def test_http2_without_h2_warns_once_and_uses_http1(
+        self, monkeypatch, caplog
+    ):
+        import sys
+
+        from routehub import clients
+
+        monkeypatch.setitem(sys.modules, "h2", None)
+        monkeypatch.setattr(clients, "_h2_installed", None)
+        clients._clients.clear()
+        http1 = clients.http_client(is_async=False, ssl_verify=True)
+        with caplog.at_level("WARNING", logger="routehub"):
+            native = clients.http_client(
+                is_async=False, ssl_verify=True, http2=True
+            )
+            sdk = clients.openai_client(
+                "openai",
+                "k",
+                None,
+                is_async=False,
+                max_retries=0,
+                ssl_verify=True,
+                http2=True,
+            )
+        assert native is http1
+        assert sdk._client._transport._pool._http2 is False
+        warnings = [
+            r
+            for r in caplog.records
+            if "h2 is not installed" in r.message
+        ]
+        assert len(warnings) == 1
+
+    @pytest.mark.parametrize(
+        "factory, call",
+        [
+            (
+                "openai_client",
+                lambda: rh.completion(
+                    model="gpt-4o", messages=USER, http2=True
+                ),
+            ),
+            (
+                "http_client",
+                lambda: rh.completion(
+                    model="anthropic/claude-sonnet-4-5",
+                    messages=USER,
+                    http2=True,
+                ),
+            ),
+            (
+                "openai_client",
+                lambda: rh.embedding(
+                    model="text-embedding-3-small",
+                    input="hi",
+                    http2=True,
+                ),
+            ),
+        ],
+    )
+    def test_http2_reaches_the_client(
+        self, monkeypatch, factory, call
+    ):
+        class Stop(Exception):
+            pass
+
+        seen = {}
+
+        def fake(*args, **kwargs):
+            seen.update(kwargs)
+            raise Stop
+
+        monkeypatch.setattr(main, factory, fake)
+        with pytest.raises(Stop):
+            call()
+        assert seen["http2"] is True
+
     def test_azure_builds_an_azure_client(self):
         from routehub import clients
 

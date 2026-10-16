@@ -36,7 +36,7 @@ pip install routehub
 # Or with UV
 uv add routehub
 
-# with orjson for faster JSON handling
+# with orjson for faster JSON handling, and h2 for optional HTTP/2
 pip install "routehub[fast]"
 ```
 
@@ -93,7 +93,7 @@ response = asyncio.run(
 | **Usage and cost visibility** | Token usage comes back in one shape for every provider, including cached input tokens and, where the provider reports them, reasoning tokens. `get_model_info` returns per-token prices, so spend can be computed per call. |
 | **Live model catalog** | `get_model_info` reads context windows, output limits, prices and capabilities from OpenRouter's live model list, and `get_all_models` queries each provider's own models API. Both cache for five minutes, there is no bundled data file to go stale, and private or fine-tuned models can be registered alongside. |
 | **Small supply-chain surface** | Three direct dependencies, `openai`, `pydantic` and `tiktoken`, for 20 installed packages in total, against 58 for litellm. API keys come from the environment or the call and are never written to logs. |
-| **Testable** | `mock_response` returns realistic responses, streams included, without a network call or an API key. RouteHub itself ships with 231 offline tests. |
+| **Testable** | `mock_response` returns realistic responses, streams included, without a network call or an API key. RouteHub itself ships with 242 offline tests. |
 | **Async throughout** | `acompletion`, `aembedding`, async streams and async model listing, with HTTP clients cached per event loop. |
 | **litellm-compatible** | The same function names and module paths (`routehub.utils`, `routehub.exceptions`), so migrating is mostly a change of import. See [Migrating from litellm](#migrating-from-litellm). |
 
@@ -299,6 +299,7 @@ Every setting is a parameter of the call; nothing is configured globally.
 | `ssl_verify` | `True` | TLS verification, or a path to a corporate CA bundle. |
 | `set_verbose` | `False` | Print the provider, model, parameter names and timing to stderr. API keys and message content are never printed. |
 | `request_timeout` | `600.0` | Request timeout in seconds. `timeout=` overrides it. |
+| `http2` | `None` | Speak HTTP/2, so concurrent calls to one provider share one connection instead of opening one each. Needs `h2` from the `fast` extra; without it RouteHub logs one warning and uses HTTP/1.1. `None` defers to `ROUTEHUB_HTTP2`, which is off by default. In our tests it cut 20 concurrent calls to one connection on OpenAI and Anthropic, and was faster on Anthropic but slower on OpenAI, so measure your workload before turning it on. |
 
 Also per call: `api_key`, `base_url` or `api_base`, `api_version` (Azure), `custom_llm_provider`, `extra_headers`, `extra_body` (always sent), `client` (your own configured OpenAI or httpx client, for example with a proxy or mTLS), and `mock_response`. Any other OpenAI parameter (`stop`, `seed`, `n`, `logprobs`, `prompt_cache_key` and so on) can be passed by name. Unrecognized keyword arguments are sent in the request body unless `drop_params` is on.
 
@@ -308,6 +309,7 @@ Also per call: `api_key`, `base_url` or `api_base`, `api_version` (Azure), `cust
 |---|---|
 | Provider keys and bases | See [Supported providers](#supported-providers). |
 | `ROUTEHUB_USE_ORJSON` | RouteHub uses `orjson` for JSON when it is installed (the `fast` extra). Set this to `0`, `false`, `no` or `off` to use the standard `json` module instead. Read once, on first use. |
+| `ROUTEHUB_HTTP2` | Set this to `1`, `true`, `yes` or `on` to use HTTP/2 on calls that do not pass `http2`. Needs the `fast` extra. Read once, on import. |
 
 ## Error handling
 
@@ -434,7 +436,7 @@ Commands, invariants and PR conventions for contributors and coding agents are i
 
 ```bash
 uv sync
-uv run pytest                        # 231 offline tests, no API keys needed
+uv run pytest                        # 242 offline tests, no API keys needed
 uv run --extra fast pytest           # with orjson installed
 uv run --with "openai<3" pytest      # against openai 2.x
 uv run ruff check .                  # lint
