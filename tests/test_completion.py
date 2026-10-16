@@ -1005,6 +1005,18 @@ def test_own_client_needs_no_env_key(monkeypatch, mock_openai):
     assert response.choices[0].message.content == "from my client"
 
 
+def test_responses_mock_response_needs_no_provider_or_key(
+    monkeypatch,
+):
+    monkeypatch.delenv("OPENAI_API_KEY")
+    reply = rh.responses("any-model", input="hi", mock_response="Ok.")
+    assert isinstance(reply, openai.types.responses.Response)
+    assert reply.output_text == "Ok."
+    assert reply.usage.output_tokens >= 1
+    with pytest.raises(TimeoutError):
+        rh.responses("x", input="hi", mock_response=TimeoutError())
+
+
 def test_responses_returns_a_response_and_maps_errors(mock_openai):
     client, recorder = mock_openai(
         httpx.Response(200, json={"id": "resp_1", "output": []}),
