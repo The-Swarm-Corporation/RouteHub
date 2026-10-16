@@ -165,6 +165,34 @@ class TestBuildRequest:
             {"type": "text", "text": "x"}
         ]
 
+    def test_replayed_turn_keeps_thinking_blocks_in_place(self):
+        blocks = [
+            {"type": "thinking", "thinking": "", "signature": "A"},
+            {"type": "text", "text": "Looking it up."},
+            {"type": "thinking", "thinking": "", "signature": "B"},
+            {
+                "type": "tool_use",
+                "id": "t1",
+                "name": "weather",
+                "input": {"city": "Paris"},
+            },
+        ]
+        message = (
+            anthropic.to_chat_completion(
+                message_response(blocks, stop_reason="tool_use"),
+                "claude-sonnet-4-6",
+                False,
+            )
+            .choices[0]
+            .message.model_dump(exclude_none=True)
+        )
+        turns = [{"role": "user", "content": "Weather?"}, message]
+        assert build(turns)["messages"][1]["content"] == blocks
+        message["content"] = "Edited."
+        assert [
+            b["type"] for b in build(turns)["messages"][1]["content"]
+        ] == ["thinking", "thinking", "text", "tool_use"]
+
     def test_tool_calls_and_results_round_trip(self):
         body = build(
             [
