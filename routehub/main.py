@@ -1,7 +1,9 @@
 """completion, acompletion and embeddings across providers."""
 
 import asyncio
+import functools
 import inspect
+import os
 import random
 import sys
 import time
@@ -239,6 +241,87 @@ def _split_args(
     return model, messages, params, options, kwargs
 
 
+@functools.lru_cache(maxsize=None)
+def _google_credentials(
+    path: Optional[str],
+) -> Tuple[Any, Optional[str]]:
+    """Load Google Application Default Credentials for Vertex AI.
+
+    Args:
+        path (Optional[str]): GOOGLE_APPLICATION_CREDENTIALS, so the
+            cache follows a change of credentials file.
+
+    Returns:
+        Tuple[Any, Optional[str]]: The credentials and their project.
+    """
+    try:
+        import google.auth
+    except ImportError:
+        raise ImportError(
+            "Vertex AI needs google-auth: "
+            'pip install "routehub[vertex]"'
+        ) from None
+    return google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+
+
+def _vertex_auth(
+    model: str,
+    api_key: Optional[str],
+    api_base: Optional[str],
+    kwargs: dict,
+) -> Tuple[str, str]:
+    """Settle the access token and base URL for a Vertex AI call.
+
+    Args:
+        model (str): Model string as passed.
+        api_key (Optional[str]): Explicit access token.
+        api_base (Optional[str]): Explicit base URL.
+        kwargs (dict): Remaining keyword arguments; vertex_project and
+            vertex_location are taken out of it.
+
+    Returns:
+        Tuple[str, str]: The access token and the base URL.
+    """
+    project = kwargs.pop("vertex_project", None) or os.environ.get(
+        "VERTEXAI_PROJECT"
+    )
+    location = (
+        kwargs.pop("vertex_location", None)
+        or os.environ.get("VERTEXAI_LOCATION")
+        or "us-central1"
+    )
+    if not api_key:
+        credentials, default_project = _google_credentials(
+            os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        )
+        if not credentials.valid:
+            from google.auth.transport.requests import Request
+
+            credentials.refresh(Request())
+        api_key = credentials.token
+        project = project or default_project
+    if api_base:
+        return api_key, api_base
+    if not project:
+        from routehub.exceptions import BadRequestError
+
+        raise BadRequestError(
+            "No Google Cloud project for Vertex AI. "
+            "Set VERTEXAI_PROJECT, or pass vertex_project.",
+            llm_provider="vertex_ai",
+            model=model,
+        )
+    host = "aiplatform.googleapis.com"
+    if location != "global":
+        host = f"{location}-{host}"
+    return api_key, (
+        f"https://{host}/v1/projects/{project}"
+        f"/locations/{location}/endpoints/openapi"
+    )
+
+
 def _build_call(
     model: str,
     messages: Any,
@@ -275,10 +358,14 @@ def _build_call(
         options["api_base"] or options["base_url"],
         options["api_key"],
     )
+    if provider == "vertex_ai":
+        api_key, api_base = _vertex_auth(
+            model, api_key, api_base, kwargs
+        )
+        if "/" not in bare:
+            bare = f"google/{bare}"
     api_version = options["api_version"]
     if provider == "azure" and not api_version:
-        import os
-
         api_version = os.environ.get(
             "AZURE_API_VERSION"
         ) or os.environ.get("OPENAI_API_VERSION")

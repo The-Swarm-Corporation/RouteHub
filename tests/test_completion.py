@@ -904,6 +904,49 @@ class TestSettings:
             == "https://api.groq.com/openai/v1"
         )
 
+    def test_vertex_ai_calls_gemini_with_a_google_access_token(
+        self, monkeypatch, mock_http
+    ):
+        from types import SimpleNamespace
+
+        from routehub import clients
+
+        http, recorder = mock_http(ok())
+        monkeypatch.setattr(
+            openai, "DefaultHttpxClient", lambda **kwargs: http
+        )
+        credentials = SimpleNamespace(valid=True, token="ya29.tok")
+        monkeypatch.setattr(
+            main,
+            "_google_credentials",
+            lambda path: (credentials, "adc-project"),
+        )
+        monkeypatch.setenv("VERTEXAI_PROJECT", "proj")
+        monkeypatch.setenv("VERTEXAI_LOCATION", "europe-west4")
+        clients._clients.clear()
+        model = "vertex_ai/gemini-2.5-flash"
+
+        rh.completion(model=model, messages=USER)
+        request = recorder.requests[-1]
+        assert str(request.url) == (
+            "https://europe-west4-aiplatform.googleapis.com/v1"
+            "/projects/proj/locations/europe-west4"
+            "/endpoints/openapi/chat/completions"
+        )
+        assert request.headers["authorization"] == "Bearer ya29.tok"
+        assert (
+            recorder.last_json["model"] == "google/gemini-2.5-flash"
+        )
+
+        rh.completion(
+            model=model, messages=USER, vertex_location="global"
+        )
+        assert str(recorder.requests[-1].url).startswith(
+            "https://aiplatform.googleapis.com/v1"
+            "/projects/proj/locations/global/"
+        )
+        assert "vertex_location" not in recorder.last_json
+
     def test_request_timeout_and_timeout(
         self, mock_openai, monkeypatch
     ):
