@@ -252,6 +252,15 @@ print(response.usage.cache_creation_input_tokens)           # tokens written to 
 
 `cache_control` markers on messages and tools go to Anthropic unchanged. `prompt_tokens` includes cache reads and writes, so cost accounting stays correct. Markers pass through to OpenRouter and are stripped for providers that cache automatically.
 
+### Responses API
+
+```python
+response = routehub.responses(model="claude-sonnet-4-6", input="Summarize this contract.", instructions="Be brief.")
+print(response.output_text)
+```
+
+`responses` and `aresponses` return the OpenAI SDK's `Response`. Other providers receive the call as it is, so they need their own Responses API, as OpenAI and Azure OpenAI have. Claude has none, so RouteHub sends the call through the Messages adapter and builds the `Response` from the reply. Text input, `instructions`, function tools with their calls and outputs, `max_output_tokens`, `reasoning.effort` and `text.format` carry over. On Claude, streaming, built-in tools, non-text input parts and stored state (`previous_response_id`, `conversation`, `background`, `prompt`, `store`) raise `UnsupportedParamsError`.
+
 ### Embeddings
 
 ```python

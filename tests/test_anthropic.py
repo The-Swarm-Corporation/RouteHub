@@ -1144,6 +1144,115 @@ class TestCompletionThroughAnthropic:
             "effort": "high",
         }
 
+    def test_responses_round_trips_a_tool_call(self, mock_http):
+        client, recorder = mock_http(
+            httpx.Response(
+                200,
+                json=message_response(
+                    [
+                        {"type": "text", "text": "Checking."},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_1",
+                            "name": "weather",
+                            "input": {"city": "Paris"},
+                        },
+                    ],
+                    stop_reason="tool_use",
+                ),
+            )
+        )
+        schema = {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+        }
+        tools = [
+            {
+                "type": "function",
+                "name": "weather",
+                "parameters": schema,
+            }
+        ]
+        reply = rh.responses(
+            "claude-sonnet-4-6",
+            input="Weather in Paris?",
+            instructions="Be brief.",
+            tools=tools,
+            max_output_tokens=50,
+            client=client,
+        )
+        assert isinstance(reply, openai.types.responses.Response)
+        assert reply.output_text == "Checking."
+        call = reply.output[1]
+        assert (call.type, call.call_id, call.name) == (
+            "function_call",
+            "toolu_1",
+            "weather",
+        )
+        assert json.loads(call.arguments) == {"city": "Paris"}
+        assert (
+            reply.usage.input_tokens,
+            reply.usage.output_tokens,
+        ) == (
+            10,
+            5,
+        )
+        sent = recorder.last_json
+        assert sent["system"] == [
+            {"type": "text", "text": "Be brief."}
+        ]
+        assert sent["max_tokens"] == 50
+        assert sent["tools"] == [
+            {"name": "weather", "input_schema": schema}
+        ]
+
+        rh.responses(
+            "claude-sonnet-4-6",
+            input=[
+                {"role": "user", "content": "Weather in Paris?"},
+                *reply.output,
+                {
+                    "type": "function_call_output",
+                    "call_id": "toolu_1",
+                    "output": "sunny",
+                },
+            ],
+            tools=tools,
+            client=client,
+        )
+        assert recorder.last_json["messages"] == [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Weather in Paris?"}
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Checking."},
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "weather",
+                        "input": {"city": "Paris"},
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": [
+                            {"type": "text", "text": "sunny"}
+                        ],
+                    }
+                ],
+            },
+        ]
+
     def test_provider_prefix_is_stripped(self, mock_http):
         client, recorder = mock_http(
             httpx.Response(
