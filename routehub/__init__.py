@@ -1,7 +1,10 @@
 """RouteHub: a fast, lightweight LLM gateway with a litellm-compatible API."""
 
 import importlib
-from typing import TYPE_CHECKING
+import os
+import sys
+import threading
+from typing import TYPE_CHECKING, Optional
 
 __version__ = "0.1.0"
 
@@ -62,7 +65,7 @@ _LAZY = {
 
 _UNCACHED = frozenset({"model_list", "model_cost"})
 
-__all__ = sorted(_LAZY)
+__all__ = sorted([*_LAZY, "preload"])
 
 if TYPE_CHECKING:  # pragma: no cover
     from routehub.exceptions import *  # noqa: F401,F403
@@ -84,6 +87,40 @@ if TYPE_CHECKING:  # pragma: no cover
         encode,
         token_counter,
     )  # noqa: F401
+
+
+_preload_thread: Optional[threading.Thread] = None
+
+
+def preload() -> Optional[threading.Thread]:
+    """Start importing the OpenAI SDK on a daemon thread.
+
+    Opt-in, also enabled by ROUTEHUB_PRELOAD=1. It only helps when the main
+    thread has other work to overlap with (building agents, reading config,
+    network I/O); pure CPU work competes for the GIL. completion and
+    acompletion wait for the thread to finish, so the SDK is imported once.
+    Code outside routehub that imports openai submodules meanwhile should
+    join the returned thread first: a concurrent submodule import can see a
+    partially initialized package. An interpreter that exits mid-import
+    abandons it.
+
+    Returns:
+        Optional[threading.Thread]: The import thread, or None when the SDK
+        is already imported.
+    """
+    global _preload_thread
+    if _preload_thread is not None and _preload_thread.is_alive():
+        return _preload_thread
+    if "openai" in sys.modules:
+        return None
+    _preload_thread = threading.Thread(
+        target=importlib.import_module,
+        args=("openai",),
+        name="routehub-preload",
+        daemon=True,
+    )
+    _preload_thread.start()
+    return _preload_thread
 
 
 def __getattr__(name: str):
@@ -114,3 +151,7 @@ def __dir__() -> list:
         list: Attribute names.
     """
     return sorted(set(globals()) | set(_LAZY))
+
+
+if os.environ.get("ROUTEHUB_PRELOAD") == "1":
+    preload()

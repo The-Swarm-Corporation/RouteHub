@@ -18,6 +18,7 @@ from typing import (
     get_args,
 )
 
+import routehub
 from routehub._json import dumps, loads
 from routehub.clients import http_client, openai_client
 from routehub.providers import PROVIDERS, get_llm_provider
@@ -1161,6 +1162,8 @@ def completion(
     """
     args = dict(locals())
     model, messages, params, options, extra = _split_args(args)
+    if routehub._preload_thread is not None:
+        routehub._preload_thread.join()
     if options["mock_response"] is not None:
         return _mock_completion(
             model,
@@ -1297,6 +1300,8 @@ async def acompletion(
     """
     args = dict(locals())
     model, messages, params, options, extra = _split_args(args)
+    if routehub._preload_thread is not None:
+        routehub._preload_thread.join()
     if options["mock_response"] is not None:
         return _mock_completion(
             model,

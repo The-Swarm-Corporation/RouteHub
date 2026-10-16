@@ -129,6 +129,7 @@ class TestLazyImport:
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,
+            timeout=60,
         )
         assert result.returncode == 0, result.stderr
         return result.stdout.strip()
@@ -147,6 +148,23 @@ class TestLazyImport:
             "print('openai' in sys.modules)"
         )
         assert out == "False"
+
+    def test_preload_imports_the_sdk_once_while_completion_runs(self):
+        out = self.run(
+            "import sys, time, routehub as rh\n"
+            "from routehub import completion\n"
+            "hits = []\n"
+            "class Count:\n"
+            "    def find_spec(self, name, path=None, target=None):\n"
+            "        hits.extend([1] if name == 'openai' else [])\n"
+            "sys.meta_path.insert(0, Count())\n"
+            "thread = rh.preload()\n"
+            "while 'openai' not in sys.modules: time.sleep(0.001)\n"
+            "reply = completion(model='gpt-5.4-mini', messages=[{'role': 'user', 'content': 'hi'}], mock_response='ok')\n"
+            "thread.join(30)\n"
+            "print(reply.choices[0].message.content, len(hits), thread.is_alive(), rh.preload())"
+        )
+        assert out == "ok 1 False None"
 
     def test_unknown_attribute_raises(self):
         with pytest.raises(AttributeError):
