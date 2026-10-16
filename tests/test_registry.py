@@ -67,6 +67,26 @@ class TestLookups:
             == "anthropic/claude-sonnet-4.6"
         )
 
+    def test_exact_name_wins_over_a_normalized_variant(
+        self, monkeypatch
+    ):
+        catalog = [
+            {"id": "openai/gpt-4o-2024-11-20"},
+            {"id": "~deepseek/deepseek-v4-flash-latest"},
+            {"id": "openai/gpt-4o"},
+            {"id": "deepseek/deepseek-v4-flash"},
+        ]
+        monkeypatch.setattr(registry, "_fetch", lambda: catalog)
+        assert rh.get_model_info("gpt-4o")["key"] == "openai/gpt-4o"
+        assert (
+            rh.get_model_info("deepseek-v4-flash")["key"]
+            == "deepseek/deepseek-v4-flash"
+        )
+        assert (
+            rh.get_model_info("gpt-4o-2024-11-20")["key"]
+            == "openai/gpt-4o-2024-11-20"
+        )
+
     def test_reasoning_false_when_not_reported(self):
         assert (
             rh.supports_reasoning("deepseek/deepseek-chat") is False
