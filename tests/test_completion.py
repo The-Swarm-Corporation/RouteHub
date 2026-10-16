@@ -163,6 +163,7 @@ class TestBasics:
         assert params["ssl_verify"].default is True
         assert params["set_verbose"].default is False
         assert params["request_timeout"].default == 600.0
+        assert params["connect_timeout"].default == 5.0
 
 
 class TestRequestShaping:
@@ -931,7 +932,16 @@ class TestSettings:
             timeout=3,
         )
         rh.completion(model="gpt-4o", messages=USER, client=client)
-        assert seen == [12.5, 3, 600.0]
+        own = httpx.Timeout(7.0)
+        rh.completion(
+            model="gpt-4o", messages=USER, client=client, timeout=own
+        )
+        assert seen == [
+            httpx.Timeout(12.5, connect=5.0),
+            httpx.Timeout(3, connect=5.0),
+            httpx.Timeout(600.0, connect=5.0),
+            own,
+        ]
 
     def test_set_verbose_logs_to_stderr_without_secrets(
         self, mock_openai, capsys

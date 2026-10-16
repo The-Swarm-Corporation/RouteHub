@@ -1300,6 +1300,62 @@ class TestCompletionThroughAnthropic:
                 num_retries=0,
             )
 
+    def test_connecting_gets_its_own_short_timeout(self, mock_http):
+        def unreachable(request):
+            raise httpx.ConnectTimeout("unreachable", request=request)
+
+        client, recorder = mock_http(unreachable)
+        with pytest.raises(rh.Timeout):
+            rh.completion(
+                model="claude-sonnet-4-6",
+                messages=messages(),
+                client=client,
+                num_retries=0,
+                request_timeout=30.0,
+            )
+        assert recorder.requests[0].extensions["timeout"] == {
+            "connect": 5.0,
+            "read": 30.0,
+            "write": 30.0,
+            "pool": 30.0,
+        }
+
+    def test_client_from_the_other_http_library_gets_the_timeout(
+        self,
+    ):
+        other = pytest.importorskip(
+            "httpx" if httpx.__name__ == "httpx2" else "httpx2"
+        )
+        seen = []
+
+        def handler(request):
+            seen.append(request.extensions["timeout"])
+            return other.Response(
+                200,
+                json=message_response(
+                    [{"type": "text", "text": "hi"}]
+                ),
+            )
+
+        response = rh.completion(
+            model="claude-sonnet-4-6",
+            messages=messages(),
+            client=other.Client(
+                transport=other.MockTransport(handler)
+            ),
+            num_retries=0,
+            request_timeout=30.0,
+        )
+        assert response.choices[0].message.content == "hi"
+        assert seen == [
+            {
+                "connect": 5.0,
+                "read": 30.0,
+                "write": 30.0,
+                "pool": 30.0,
+            }
+        ]
+
     async def test_async_streaming_call(self, mock_http):
         client, _ = mock_http(
             httpx.Response(200, content=sse(STREAM_EVENTS)),

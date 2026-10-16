@@ -298,7 +298,8 @@ Every setting is a parameter of the call; nothing is configured globally.
 | `num_retries` | `None` | Retries on rate limits, 5xx errors and connection failures, with exponential backoff that honours `retry-after`. `None` means 2. |
 | `ssl_verify` | `True` | TLS verification, or a path to a corporate CA bundle. |
 | `set_verbose` | `False` | Print the provider, model, parameter names and timing to stderr. API keys and message content are never printed. |
-| `request_timeout` | `600.0` | Request timeout in seconds. `timeout=` overrides it. |
+| `request_timeout` | `600.0` | Read, write and pool timeout in seconds. `timeout=` overrides it; an `httpx.Timeout` passed as `timeout=` is used unchanged. |
+| `connect_timeout` | `5.0` | Seconds allowed to open a connection, so an unreachable host fails fast instead of waiting `request_timeout`. |
 
 Also per call: `api_key`, `base_url` or `api_base`, `api_version` (Azure), `custom_llm_provider`, `extra_headers`, `extra_body` (always sent), `client` (your own configured OpenAI or httpx client, for example with a proxy or mTLS), and `mock_response`. Any other OpenAI parameter (`stop`, `seed`, `n`, `logprobs`, `prompt_cache_key` and so on) can be passed by name. Unrecognized keyword arguments are sent in the request body unless `drop_params` is on.
 
