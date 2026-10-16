@@ -97,6 +97,32 @@ def test_embedding_uses_the_cached_client(monkeypatch, mock_openai):
     assert seen["ssl_verify"] is False
 
 
+def test_azure_embedding_reads_the_api_version_env(
+    monkeypatch, mock_openai
+):
+    import routehub.main as main
+
+    client, _ = mock_openai(
+        httpx.Response(200, json=embedding_body([1.0]))
+    )
+    seen = {}
+
+    def fake_openai_client(provider, api_key, api_base, **kwargs):
+        seen.update(kwargs)
+        return client
+
+    monkeypatch.setattr(main, "openai_client", fake_openai_client)
+    monkeypatch.delenv("OPENAI_API_VERSION", raising=False)
+    monkeypatch.setenv("AZURE_API_VERSION", "2024-10-21")
+    rh.embedding(
+        model="azure/my-embed",
+        input="a",
+        api_key="k",
+        api_base="https://x.openai.azure.com",
+    )
+    assert seen["api_version"] == "2024-10-21"
+
+
 def test_embedding_maps_errors(mock_openai):
     client, _ = mock_openai(
         httpx.Response(401, json={"error": {"message": "bad key"}})
