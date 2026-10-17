@@ -459,6 +459,25 @@ class TestBuildRequest:
         )
 
     @pytest.mark.parametrize(
+        "stop, drop_params, expected",
+        [
+            (["\n", " ", "END"], True, ["END"]),
+            ("\n\n", True, None),
+            ("END", True, ["END"]),
+            ("\n", False, ["\n"]),
+        ],
+    )
+    def test_drop_params_drops_whitespace_stop_sequences(
+        self, stop, drop_params, expected
+    ):
+        body = build(
+            [{"role": "user", "content": "Hi"}],
+            drop_params=drop_params,
+            stop=stop,
+        )
+        assert body.get("stop_sequences") == expected
+
+    @pytest.mark.parametrize(
         "model",
         ["claude-opus-5-5", "claude-sonnet-5-5", "claude-opus-4-7"],
     )

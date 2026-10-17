@@ -530,11 +530,12 @@ def build_request(
     if params.get("top_p") is not None:
         if not (drop_params and "temperature" in body):
             body["top_p"] = params["top_p"]
-    stop = params.get("stop")
+    stop = params.get("stop") or []
+    stop = [stop] if isinstance(stop, str) else stop
+    if drop_params:
+        stop = [s for s in stop if s.strip()]
     if stop:
-        body["stop_sequences"] = (
-            [stop] if isinstance(stop, str) else stop
-        )
+        body["stop_sequences"] = stop
     if params.get("user"):
         body["metadata"] = {"user_id": params["user"]}
     if params.get("stream"):
