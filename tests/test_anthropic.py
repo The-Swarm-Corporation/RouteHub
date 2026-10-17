@@ -244,6 +244,32 @@ class TestBuildRequest:
             {"type": "text", "text": "Rain", "cache_control": CACHE}
         ]
 
+    def test_final_assistant_prefill_loses_trailing_whitespace(self):
+        body = build(
+            [
+                {"role": "user", "content": "Name a colour."},
+                {"role": "assistant", "content": "Blue. "},
+                {"role": "user", "content": "As JSON?"},
+                {"role": "assistant", "content": '{"colour": \n'},
+            ]
+        )
+        assert [m["content"] for m in body["messages"][1::2]] == [
+            [{"type": "text", "text": "Blue. "}],
+            [{"type": "text", "text": '{"colour":'}],
+        ]
+        assert build(
+            [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "content": ["Hello ", "\n"]},
+                {"role": "assistant", "content": "  "},
+            ]
+        )["messages"][1:] == [
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hello"}],
+            }
+        ]
+
     def test_tools_and_tool_choice_translate(self):
         tools = [
             {

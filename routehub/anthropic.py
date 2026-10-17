@@ -344,6 +344,17 @@ def _translate_messages(
         marker = message.get("cache_control")
         if marker and blocks:
             blocks[-1].setdefault("cache_control", marker)
+    while turns and turns[-1]["role"] == "assistant":
+        content = turns[-1]["content"]
+        block = content[-1]
+        if block.get("type") != "text":
+            break
+        block["text"] = block["text"].rstrip()
+        if block["text"]:
+            break
+        content.pop()
+        if not content:
+            turns.pop()
     return system, turns
 
 
