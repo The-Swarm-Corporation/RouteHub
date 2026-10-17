@@ -1287,18 +1287,24 @@ class TestCompletionThroughAnthropic:
             )
         assert len(recorder.requests) == 2
 
-    def test_connection_error_maps(self, mock_http):
-        def fail(request):
-            raise httpx.ConnectError("refused", request=request)
+    @pytest.mark.parametrize("library", ["httpx", "httpx2"])
+    def test_connection_error_retries_and_maps(self, library):
+        lib = pytest.importorskip(library)
+        sent = []
 
-        client, _ = mock_http(fail)
+        def fail(request):
+            sent.append(request)
+            raise lib.ConnectError("refused", request=request)
+
+        client = lib.Client(transport=lib.MockTransport(fail))
         with pytest.raises(rh.APIConnectionError):
             rh.completion(
                 model="claude-sonnet-4-6",
                 messages=messages(),
                 client=client,
-                num_retries=0,
+                num_retries=1,
             )
+        assert len(sent) == 2
 
     async def test_async_streaming_call(self, mock_http):
         client, _ = mock_http(
