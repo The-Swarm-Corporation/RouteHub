@@ -105,6 +105,23 @@ def decode(
     return encoding.decode(tokens or [])
 
 
+def _plain_message(message: Any) -> Any:
+    """Turn an SDK message, or SDK tool calls in a dict, into dicts.
+
+    Args:
+        message (Any): A chat message dict or an SDK message object.
+
+    Returns:
+        Any: The message, with any SDK tool calls turned into dicts.
+    """
+    if hasattr(message, "model_dump"):
+        return message.model_dump(exclude_none=True)
+    if not isinstance(message, dict) or not message.get("tool_calls"):
+        return message
+    calls = [_plain_message(c) for c in message["tool_calls"]]
+    return {**message, "tool_calls": calls}
+
+
 def _content_text(content: Any) -> str:
     """Flatten message content into the text that gets tokenized.
 
@@ -150,8 +167,7 @@ def token_counter(
         return len(encode(model, text))
     total = 0
     for message in messages or []:
-        if hasattr(message, "model_dump"):
-            message = message.model_dump(exclude_none=True)
+        message = _plain_message(message)
         total += _TOKENS_PER_MESSAGE
         total += len(
             encode(model, _content_text(message.get("content")))
