@@ -496,6 +496,16 @@ def _openai_request(call: _Call) -> Tuple[dict, dict]:
     request = dict(call.params)
     request["model"] = call.bare
     request["messages"] = _clean_messages(call.messages, keep_markers)
+    if call.provider not in ("openai", "azure"):
+        request["messages"] = [
+            (
+                {**m, "role": "system"}
+                if isinstance(m, dict)
+                and m.get("role") == "developer"
+                else m
+            )
+            for m in request["messages"]
+        ]
 
     reasoning_model = call.provider in (
         "openai",

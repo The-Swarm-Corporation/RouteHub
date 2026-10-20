@@ -391,6 +391,30 @@ class TestRequestShaping:
             "content": "Hey",
         }
 
+    def test_developer_role_is_sent_as_system_outside_openai(
+        self, mock_openai
+    ):
+        client, recorder = mock_openai(ok(), ok())
+        messages = [
+            {"role": "developer", "content": "Be brief."},
+            *USER,
+        ]
+        rh.completion(
+            model="mistral/mistral-small-latest",
+            messages=messages,
+            client=client,
+        )
+        assert recorder.last_json["messages"][0] == {
+            "role": "system",
+            "content": "Be brief.",
+        }
+        rh.completion(
+            model="gpt-4o", messages=messages, client=client
+        )
+        assert (
+            recorder.last_json["messages"][0]["role"] == "developer"
+        )
+
     def test_response_message_objects_are_accepted_as_history(
         self, mock_openai, mock_http
     ):
