@@ -190,6 +190,18 @@ class TestExceptions:
         )
         assert str(error) == "slow down"
 
+    def test_timeout_keeps_its_message(self):
+        from routehub._http import httpx
+
+        error = rh.Timeout("Batch b1 is still running after 5s.")
+        assert str(error) == "Batch b1 is still running after 5s."
+        assert str(error) == error.message
+        read = httpx.ReadTimeout(
+            "read stalled", request=httpx.Request("GET", "https://x")
+        )
+        assert str(exceptions.map_exception(read)) == "read stalled"
+        assert str(rh.Timeout()) == "Request timed out."
+
     def test_litellm_style_import_paths(self):
         from routehub.exceptions import (
             AuthenticationError,

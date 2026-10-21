@@ -118,6 +118,27 @@ class TestBatches:
         )
         assert results[0].choices[0].message.content == "Async"
 
+    def test_wait_timeout_names_the_batch(self, mock_openai):
+        client, _ = mock_openai(
+            httpx.Response(200, json={"id": "file-in"}),
+            httpx.Response(
+                200, json={"id": "batch_1", "status": "validating"}
+            ),
+            httpx.Response(
+                200, json={"id": "batch_1", "status": "in_progress"}
+            ),
+        )
+        with pytest.raises(rh.Timeout) as caught:
+            rh.batched_completions(
+                model="gpt-5.4-mini",
+                requests=[{"messages": USER}],
+                timeout=-1,
+                client=client,
+            )
+        assert str(caught.value) == (
+            "Batch batch_1 is still running after -1s."
+        )
+
     def test_requests_an_expired_batch_never_ran_are_none(
         self, mock_openai
     ):
