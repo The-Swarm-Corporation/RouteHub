@@ -126,6 +126,7 @@ Prefix the model with its provider. Bare names starting with `gpt-`, `o1`/`o3`/`
 | OpenAI | `gpt-5.4`, `openai/gpt-4o` | `OPENAI_API_KEY` |
 | Anthropic (native API) | `claude-sonnet-4-6`, `anthropic/claude-opus-4-7` | `ANTHROPIC_API_KEY` |
 | Google Gemini | `gemini/gemini-3-flash-preview` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+| Google Vertex AI (Gemini) | `vertex_ai/gemini-2.5-flash` | Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS`; `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` (default `us-central1`), or `vertex_project=` and `vertex_location=` per call. Needs `pip install "routehub[vertex]"` |
 | Azure OpenAI | `azure/<deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` |
 | Groq | `groq/llama-3.3-70b-versatile` | `GROQ_API_KEY` |
 | xAI | `xai/grok-4` | `XAI_API_KEY` |

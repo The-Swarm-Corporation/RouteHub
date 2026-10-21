@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 fast = ["orjson>=3.9"]
+vertex = ["google-auth[requests]>=2.0"]
 
 [project.urls]
 Homepage = "https://github.com/The-Swarm-Corporation/RouteHub"

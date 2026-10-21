@@ -59,6 +59,7 @@ PROVIDERS = {
             ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             ("GEMINI_API_BASE",),
         ),
+        Provider("vertex_ai", None),
         Provider(
             "groq",
             "https://api.groq.com/openai/v1",
