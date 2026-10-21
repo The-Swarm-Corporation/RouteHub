@@ -187,6 +187,41 @@ class TestBuildRequest:
             },
         ]
 
+    def test_whitespace_only_text_is_dropped(self):
+        call = {
+            "id": "t1",
+            "type": "function",
+            "function": {"name": "weather", "arguments": "{}"},
+        }
+        body = build(
+            [
+                {"role": "system", "content": " "},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "\n"},
+                        "Rain?",
+                    ],
+                },
+                {
+                    "role": "assistant",
+                    "content": "\n\n",
+                    "tool_calls": [call],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "t1",
+                    "content": "Yes",
+                },
+            ]
+        )
+        assert "system" not in body
+        user, assistant, _ = body["messages"]
+        assert user["content"] == [{"type": "text", "text": "Rain?"}]
+        assert [b["type"] for b in assistant["content"]] == [
+            "tool_use"
+        ]
+
     def test_empty_text_blocks_are_dropped(self):
         body = build(
             [
