@@ -282,6 +282,28 @@ def _tool_use_input(arguments: Any) -> dict:
     return decoded if isinstance(decoded, dict) else {}
 
 
+def _turn_key(blocks: List[dict]) -> Tuple[list, list]:
+    """Reduce an assistant turn to its thinking and tool calls, in order.
+
+    Args:
+        blocks (List[dict]): Anthropic content blocks of one turn.
+
+    Returns:
+        Tuple[list, list]: Thinking signatures and tool-call triples.
+    """
+    thinking = [
+        b.get("signature") or b.get("data")
+        for b in blocks
+        if b.get("type") in ("thinking", "redacted_thinking")
+    ]
+    calls = [
+        (b.get("id"), b.get("name"), b.get("input") or {})
+        for b in blocks
+        if b.get("type") == "tool_use"
+    ]
+    return thinking, calls
+
+
 def _translate_messages(
     messages: List[dict],
 ) -> Tuple[List[dict], List[dict]]:
@@ -322,6 +344,20 @@ def _translate_messages(
                         ),
                     }
                 )
+            stored = (
+                message.get("provider_specific_fields") or {}
+            ).get("content_blocks")
+            text = "".join(
+                b.get("text", "")
+                for b in stored or []
+                if b.get("type") == "text"
+            )
+            if (
+                stored
+                and message.get("content") == (text or None)
+                and _turn_key(stored) == _turn_key(blocks)
+            ):
+                blocks = [dict(b) for b in stored]
             if blocks:
                 turns.append({"role": "assistant", "content": blocks})
         elif role in ("tool", "function"):
@@ -771,6 +807,9 @@ def to_chat_completion(
     if thinking_blocks:
         message["thinking_blocks"] = thinking_blocks
         message["reasoning_content"] = "".join(reasoning)
+        message["provider_specific_fields"] = {
+            "content_blocks": data["content"]
+        }
     return ChatCompletion.model_validate(
         {
             "id": data.get("id") or f"chatcmpl-{uuid.uuid4().hex}",
