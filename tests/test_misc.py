@@ -90,6 +90,29 @@ class TestTokenizer:
             text="a b", custom_tokenizer={"tokenizer": Words()}
         ) == ["a", "b"]
 
+    def test_hugging_face_tokenizer_returns_its_ids(self):
+        class Encoding:
+            def __init__(self, ids):
+                self.ids = ids
+
+        class HuggingFaceTokenizer:
+            def encode(self, text):
+                return Encoding(list(range(len(text.split()))))
+
+        hf = HuggingFaceTokenizer()
+        assert rh.encode(text="a b c", custom_tokenizer=hf) == [
+            0,
+            1,
+            2,
+        ]
+        assert rh.encode(
+            text="a b",
+            custom_tokenizer={
+                "type": "huggingface_tokenizer",
+                "tokenizer": hf,
+            },
+        ) == [0, 1]
+
     def test_decode_round_trips(self):
         assert (
             rh.decode(
