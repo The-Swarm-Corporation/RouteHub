@@ -261,7 +261,7 @@ def _guess_provider(model: str) -> Optional[str]:
     Returns:
         Optional[str]: The provider, or None when it cannot be inferred.
     """
-    lowered = model.lower()
+    lowered = model.lower().removeprefix("ft:")
     for prefixes, provider in _PREFIX_PROVIDERS:
         if lowered.startswith(prefixes):
             return provider
