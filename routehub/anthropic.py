@@ -728,7 +728,7 @@ def to_chat_completion(
             text.append(block.get("text", ""))
         elif kind == "tool_use":
             if json_mode and block.get("name") == JSON_TOOL_NAME:
-                text.append(dumps_str(block.get("input") or {}))
+                text = [dumps_str(block.get("input") or {})]
                 continue
             tool_calls.append(
                 {
@@ -878,6 +878,21 @@ class StreamTranslator:
         self._block_kind: Dict[int, str] = {}
         self._block_tool: Dict[int, int] = {}
         self._unstreamed_input: Dict[int, Any] = {}
+        self._held_text: List[str] = []
+
+    def _text(self, text: str) -> List[Any]:
+        """Stream text, or hold it in JSON mode until the answer is known.
+
+        Args:
+            text (str): Text from a text block.
+
+        Returns:
+            List[Any]: A content chunk, or none while the text is held.
+        """
+        if not self.json_mode:
+            return [self._chunk({"content": text})]
+        self._held_text.append(text)
+        return []
 
     def _chunk(
         self,
@@ -962,7 +977,10 @@ class StreamTranslator:
                     if v is not None
                 }
             )
-            return [self._chunk({}, finish_reason=finish)]
+            held = "".join(self._held_text)
+            self._held_text.clear()
+            chunks = [self._chunk({"content": held})] if held else []
+            return chunks + [self._chunk({}, finish_reason=finish)]
         if kind == "content_block_stop":
             index = data.get("index", 0)
             if index not in self._unstreamed_input:
@@ -1005,6 +1023,7 @@ class StreamTranslator:
             self._unstreamed_input[index] = block.get("input") or {}
             if self.json_mode and block.get("name") == JSON_TOOL_NAME:
                 self._block_kind[index] = "json_tool"
+                self._held_text.clear()
                 return []
             self._tool_index += 1
             self._block_tool[index] = self._tool_index
@@ -1026,7 +1045,7 @@ class StreamTranslator:
                 )
             ]
         if kind == "text" and block.get("text"):
-            return [self._chunk({"content": block["text"]})]
+            return self._text(block["text"])
         if kind == "redacted_thinking":
             return [
                 self._chunk(
@@ -1055,7 +1074,7 @@ class StreamTranslator:
         delta = data.get("delta") or {}
         kind = delta.get("type")
         if kind == "text_delta":
-            return [self._chunk({"content": delta.get("text", "")})]
+            return self._text(delta.get("text", ""))
         if kind == "input_json_delta":
             partial = delta.get("partial_json", "")
             if partial:
