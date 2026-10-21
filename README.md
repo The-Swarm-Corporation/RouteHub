@@ -261,6 +261,8 @@ vectors = [item.embedding for item in response.data]
 
 `aembedding` is the async form. Any OpenAI-compatible embeddings endpoint works.
 
+For Cohere, pass `input_type`, such as `input_type="search_query"` or `"search_document"`, to send the call to Cohere's native v2 embed endpoint, since its OpenAI compatibility endpoint does not accept `input_type`. There, `dimensions` is sent as `output_dimension`.
+
 ### Batches
 
 ```python

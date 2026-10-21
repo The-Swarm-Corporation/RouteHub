@@ -107,6 +107,47 @@ def test_embedding_maps_errors(mock_openai):
         )
 
 
+def test_cohere_input_type_uses_the_native_embed_endpoint(
+    mock_openai,
+):
+    client, recorder = mock_openai(
+        httpx.Response(
+            200,
+            json={
+                "id": "e1",
+                "embeddings": {"float": [[0.1, 0.2], [0.3, 0.4]]},
+                "texts": ["a", "b"],
+                "meta": {"billed_units": {"input_tokens": 3}},
+            },
+        )
+    )
+    response = rh.embedding(
+        model="cohere/embed-v4.0",
+        input=["a", "b"],
+        input_type="search_query",
+        dimensions=256,
+        client=client,
+    )
+    assert (
+        str(recorder.requests[-1].url)
+        == "https://mock.local/v2/embed"
+    )
+    assert recorder.last_json == {
+        "model": "embed-v4.0",
+        "texts": ["a", "b"],
+        "input_type": "search_query",
+        "embedding_types": ["float"],
+        "output_dimension": 256,
+    }
+    assert isinstance(response, openai.types.CreateEmbeddingResponse)
+    assert [item.embedding for item in response.data] == [
+        [0.1, 0.2],
+        [0.3, 0.4],
+    ]
+    assert response.data[1].index == 1
+    assert response.usage.prompt_tokens == 3
+
+
 def test_anthropic_has_no_embeddings():
     with pytest.raises(rh.BadRequestError, match="no embeddings"):
         rh.embedding(model="claude-sonnet-4-6", input="a")
