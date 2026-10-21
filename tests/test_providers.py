@@ -133,6 +133,24 @@ def test_local_servers_get_a_placeholder_key_and_v1_suffix(
     )
 
 
+def test_explicit_api_base_gets_the_same_v1_suffix_as_the_env_var(
+    monkeypatch,
+):
+    monkeypatch.setenv("OLLAMA_API_BASE", "http://gpu-box:11434")
+    from_env = rh.get_llm_provider("ollama/llama3")[3]
+    monkeypatch.delenv("OLLAMA_API_BASE")
+    explicit = rh.get_llm_provider(
+        "ollama/llama3", api_base="http://gpu-box:11434"
+    )[3]
+    assert explicit == from_env == "http://gpu-box:11434/v1"
+    assert (
+        rh.get_llm_provider(
+            "ollama/llama3", api_base="http://gpu-box:11434/v1/"
+        )[3]
+        == "http://gpu-box:11434/v1/"
+    )
+
+
 def test_api_base_without_a_provider_means_openai_compatible():
     bare, provider, _, base = rh.get_llm_provider(
         "my-finetune", api_base="http://vllm.local/v1"
