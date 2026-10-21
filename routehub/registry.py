@@ -132,6 +132,7 @@ def _build_aliases(catalog: Dict[str, dict]) -> Dict[str, str]:
         Dict[str, str]: Lookup key to OpenRouter id.
     """
     aliases: Dict[str, str] = {}
+    normalized: Dict[str, str] = {}
     for model_id in catalog:
         lowered = model_id.lower()
         aliases[lowered] = model_id
@@ -140,8 +141,8 @@ def _build_aliases(catalog: Dict[str, dict]) -> Dict[str, str]:
             continue
         name = lowered.split("/", 1)[1]
         aliases.setdefault(name, model_id)
-        aliases.setdefault(_normalize(name), model_id)
-    return aliases
+        normalized.setdefault(_normalize(name), model_id)
+    return {**normalized, **aliases}
 
 
 def _ensure_catalog() -> Dict[str, dict]:
