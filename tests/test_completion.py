@@ -270,6 +270,34 @@ class TestRequestShaping:
         assert "reasoning_effort" not in recorder.last_json
         assert recorder.last_json["temperature"] == 0.3
 
+    @pytest.mark.parametrize(
+        "model, effort_kept",
+        [("xai/grok-4", False), ("grok-3-mini", True)],
+    )
+    def test_drop_params_strips_what_grok_reasoning_models_reject(
+        self, mock_openai, model, effort_kept
+    ):
+        client, recorder = mock_openai(ok())
+        rh.completion(
+            model=model,
+            messages=USER,
+            stop=["END"],
+            presence_penalty=0.1,
+            frequency_penalty=0.1,
+            reasoning_effort="low",
+            temperature=0.3,
+            drop_params=True,
+            client=client,
+        )
+        body = recorder.last_json
+        assert not {
+            "stop",
+            "presence_penalty",
+            "frequency_penalty",
+        } & set(body)
+        assert ("reasoning_effort" in body) is effort_kept
+        assert body["temperature"] == 0.3
+
     def test_string_none_reasoning_effort_is_dropped(
         self, mock_openai
     ):

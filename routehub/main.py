@@ -127,6 +127,12 @@ _REASONING_REJECTS = (
     "top_logprobs",
     "logit_bias",
 )
+_XAI_REASONING_PREFIXES = ("grok-3-mini", "grok-4")
+_XAI_REASONING_REJECTS = (
+    "stop",
+    "presence_penalty",
+    "frequency_penalty",
+)
 # Providers that pass Anthropic cache_control markers through to Claude.
 _CACHE_CONTROL_PROVIDERS = frozenset({"openrouter"})
 _RESPONSE_ONLY_KEYS = (
@@ -476,7 +482,7 @@ def _sdk_params(completions: Any) -> frozenset:
 
 
 def _drop_rejected(call: _Call, request: dict, effort: str) -> None:
-    """Remove what an OpenAI model rejects, when drop_params is on.
+    """Remove what an OpenAI or xAI model rejects, under drop_params.
 
     Args:
         call (_Call): The resolved request.
@@ -491,6 +497,15 @@ def _drop_rejected(call: _Call, request: dict, effort: str) -> None:
                     continue
                 request.pop(name, None)
         else:
+            request.pop(effort, None)
+    elif (
+        call.drop_params
+        and call.provider == "xai"
+        and call.bare.lower().startswith(_XAI_REASONING_PREFIXES)
+    ):
+        for name in _XAI_REASONING_REJECTS:
+            request.pop(name, None)
+        if not call.bare.lower().startswith("grok-3-mini"):
             request.pop(effort, None)
 
 
