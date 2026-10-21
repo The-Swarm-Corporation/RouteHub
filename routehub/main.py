@@ -435,6 +435,8 @@ def _clean_messages(
                 for k, v in message.items()
                 if k not in _RESPONSE_ONLY_KEYS
             }
+        if "tool_calls" in new and not new["tool_calls"]:
+            new = {k: v for k, v in new.items() if k != "tool_calls"}
         content = new.get("content")
         if (
             not keep_cache_control
@@ -530,6 +532,11 @@ def _openai_request(call: _Call) -> Tuple[dict, dict]:
         request.pop("reasoning_effort")
     if not request.get("stream"):
         request.pop("stream_options", None)
+    if not request.get("tools"):
+        request.pop("tools", None)
+    if not request.get("functions"):
+        request.pop("functions", None)
+        request.pop("function_call", None)
     if not request.get("tools") and not request.get("functions"):
         request.pop("tool_choice", None)
         request.pop("parallel_tool_calls", None)
