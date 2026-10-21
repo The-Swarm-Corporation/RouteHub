@@ -765,8 +765,7 @@ def _anthropic_send(
         Any: The successful HTTP response, still open when streaming.
     """
     from routehub import anthropic
-    from routehub._http import httpx
-    from routehub.exceptions import map_exception
+    from routehub.exceptions import _http_errors, map_exception
 
     stream = bool(body.get("stream"))
     headers, content = _anthropic_content(headers, body, call)
@@ -781,10 +780,7 @@ def _anthropic_send(
                 timeout=call.timeout,
             )
             response = client.send(request, stream=stream)
-        except (
-            httpx.TimeoutException,
-            httpx.TransportError,
-        ) as error:
+        except _http_errors("TransportError") as error:
             if attempt < call.max_retries:
                 time.sleep(_backoff(attempt))
                 attempt += 1
@@ -826,8 +822,7 @@ async def _anthropic_asend(
         Any: The successful HTTP response, still open when streaming.
     """
     from routehub import anthropic
-    from routehub._http import httpx
-    from routehub.exceptions import map_exception
+    from routehub.exceptions import _http_errors, map_exception
 
     stream = bool(body.get("stream"))
     headers, content = _anthropic_content(headers, body, call)
@@ -842,10 +837,7 @@ async def _anthropic_asend(
                 timeout=call.timeout,
             )
             response = await client.send(request, stream=stream)
-        except (
-            httpx.TimeoutException,
-            httpx.TransportError,
-        ) as error:
+        except _http_errors("TransportError") as error:
             if attempt < call.max_retries:
                 await asyncio.sleep(_backoff(attempt))
                 attempt += 1

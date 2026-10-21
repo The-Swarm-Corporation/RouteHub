@@ -1,6 +1,7 @@
 """Provider-agnostic exceptions, named and shaped like litellm's."""
 
-from typing import Any, Optional
+import sys
+from typing import Any, Optional, Tuple
 
 import openai
 from openai import OpenAIError
@@ -239,6 +240,26 @@ __all__ = [
 ]
 
 
+def _http_errors(name: str) -> Tuple[type, ...]:
+    """Return one exception class from each loaded HTTP library.
+
+    A caller's own client may come from either library, not only the
+    one routehub._http picked, so errors from both are matched.
+
+    Args:
+        name (str): The class name, such as "TransportError".
+
+    Returns:
+        Tuple[type, ...]: The class from httpx and from httpx2, when
+        each is imported.
+    """
+    return tuple(
+        getattr(sys.modules[lib], name)
+        for lib in ("httpx", "httpx2")
+        if lib in sys.modules
+    )
+
+
 def exception_for_status(
     status_code: int,
     message: str,
@@ -322,14 +343,14 @@ def map_exception(
             model,
             body=error.body,
         )
-    if isinstance(error, httpx.TimeoutException):
+    if isinstance(error, _http_errors("TimeoutException")):
         return Timeout(
             str(error) or "Request timed out.",
             llm_provider,
             model,
             request=getattr(error, "_request", None),
         )
-    if isinstance(error, httpx.TransportError):
+    if isinstance(error, _http_errors("TransportError")):
         return APIConnectionError(
             str(error) or "Connection error.",
             llm_provider,
