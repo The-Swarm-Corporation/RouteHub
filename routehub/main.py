@@ -1642,6 +1642,255 @@ def _responses_request(
     return call, resource, request
 
 
+def _bridged(model: str, kwargs: dict) -> bool:
+    """Whether a Responses call must go through the chat adapter.
+
+    Args:
+        model (str): Model string.
+        kwargs (dict): The responses() keyword arguments.
+
+    Returns:
+        bool: True for native providers, which have no Responses API.
+    """
+    provider = get_llm_provider(
+        model,
+        kwargs.get("custom_llm_provider"),
+        kwargs.get("api_base") or kwargs.get("base_url"),
+        kwargs.get("api_key"),
+    )[1]
+    return PROVIDERS[provider].native
+
+
+def _text_parts(content: Any) -> Any:
+    """Turn Responses content parts into chat text parts.
+
+    Args:
+        content (Any): A string, or a list of Responses content parts.
+
+    Returns:
+        Any: The string unchanged, or a list of chat text parts.
+    """
+    from routehub.exceptions import UnsupportedParamsError
+
+    if isinstance(content, str):
+        return content
+    kinds = {part.get("type") for part in content} - {
+        "input_text",
+        "output_text",
+    }
+    if kinds:
+        raise UnsupportedParamsError(
+            f"responses cannot send {', '.join(sorted(kinds))} parts to this provider."
+        )
+    return [
+        {"type": "text", "text": part["text"]} for part in content
+    ]
+
+
+def _chat_messages(input: Any, instructions: Any) -> List[dict]:
+    """Turn Responses input items into chat messages.
+
+    Args:
+        input (Any): A string, or a list of Responses input items.
+        instructions (Any): System instructions, or None.
+
+    Returns:
+        List[dict]: OpenAI-format chat messages.
+    """
+    from routehub.exceptions import UnsupportedParamsError
+
+    messages = []
+    if instructions:
+        messages.append({"role": "system", "content": instructions})
+    if isinstance(input, str):
+        input = [{"role": "user", "content": input}]
+    for item in input or []:
+        if not isinstance(item, dict):
+            item = item.model_dump(exclude_none=True)
+        kind = item.get("type", "message")
+        if kind == "message":
+            messages.append(
+                {
+                    "role": item["role"],
+                    "content": _text_parts(item.get("content")),
+                }
+            )
+        elif kind == "function_call":
+            call = {
+                "id": item["call_id"],
+                "type": "function",
+                "function": {
+                    "name": item["name"],
+                    "arguments": item["arguments"],
+                },
+            }
+            if messages and messages[-1]["role"] == "assistant":
+                messages[-1].setdefault("tool_calls", []).append(call)
+            else:
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [call],
+                    }
+                )
+        elif kind == "function_call_output":
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": item["call_id"],
+                    "content": _text_parts(item["output"]),
+                }
+            )
+        else:
+            raise UnsupportedParamsError(
+                f"responses cannot send {kind} input items to this provider."
+            )
+    return messages
+
+
+def _chat_args(model: str, kwargs: dict) -> dict:
+    """Translate responses() arguments into completion() arguments.
+
+    Args:
+        model (str): Model string.
+        kwargs (dict): The responses() keyword arguments.
+
+    Returns:
+        dict: Keyword arguments for completion.
+    """
+    from routehub.exceptions import UnsupportedParamsError
+
+    args = dict(kwargs, model=model)
+    for name in (
+        "stream",
+        "previous_response_id",
+        "conversation",
+        "background",
+        "prompt",
+        "store",
+    ):
+        if args.pop(name, None):
+            raise UnsupportedParamsError(
+                f"responses does not support {name} for this provider.",
+                model=model,
+            )
+    args["messages"] = _chat_messages(
+        args.pop("input", None), args.pop("instructions", None)
+    )
+    tools = args.pop("tools", None)
+    if tools:
+        kinds = {tool.get("type") for tool in tools} - {"function"}
+        if kinds:
+            raise UnsupportedParamsError(
+                f"responses supports only function tools for this provider, not {', '.join(sorted(kinds))}.",
+                model=model,
+            )
+        args["tools"] = [
+            {
+                "type": "function",
+                "function": {
+                    k: v
+                    for k, v in tool.items()
+                    if k in ("name", "description", "parameters")
+                },
+            }
+            for tool in tools
+        ]
+    if "max_output_tokens" in args:
+        args["max_tokens"] = args.pop("max_output_tokens")
+    reasoning = args.pop("reasoning", None) or {}
+    if reasoning.get("effort"):
+        args["reasoning_effort"] = reasoning["effort"]
+    text = args.pop("text", None) or {}
+    spec = dict(text.get("format") or {})
+    kind = spec.pop("type", "text")
+    if kind == "json_schema":
+        args["response_format"] = {"type": kind, "json_schema": spec}
+    elif kind != "text":
+        args["response_format"] = {"type": kind}
+    return args
+
+
+def _to_response(completion: Any, kwargs: dict) -> Any:
+    """Convert a ChatCompletion into an OpenAI Response.
+
+    Args:
+        completion (Any): The ChatCompletion to convert.
+        kwargs (dict): The responses() keyword arguments.
+
+    Returns:
+        Any: An OpenAI Response.
+    """
+    from openai.types.responses import Response
+
+    choice = completion.choices[0]
+    message = choice.message
+    reason = {
+        "length": "max_output_tokens",
+        "content_filter": "content_filter",
+    }.get(choice.finish_reason)
+    status = "incomplete" if reason else "completed"
+    output = []
+    if message.content:
+        output.append(
+            {
+                "type": "message",
+                "id": completion.id,
+                "role": "assistant",
+                "status": status,
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": message.content,
+                        "annotations": [],
+                    }
+                ],
+            }
+        )
+    for call in message.tool_calls or []:
+        output.append(
+            {
+                "type": "function_call",
+                "id": call.id,
+                "call_id": call.id,
+                "name": call.function.name,
+                "arguments": call.function.arguments,
+                "status": "completed",
+            }
+        )
+    usage = completion.usage
+    details = usage.prompt_tokens_details
+    cached = getattr(details, "cached_tokens", None) or 0
+    written = getattr(details, "cache_creation_tokens", None) or 0
+    return Response.model_validate(
+        {
+            "id": completion.id,
+            "object": "response",
+            "created_at": completion.created,
+            "model": completion.model,
+            "status": status,
+            "incomplete_details": reason and {"reason": reason},
+            "instructions": kwargs.get("instructions"),
+            "output": output,
+            "parallel_tool_calls": kwargs.get("parallel_tool_calls")
+            is not False,
+            "tool_choice": kwargs.get("tool_choice") or "auto",
+            "tools": kwargs.get("tools") or [],
+            "usage": {
+                "input_tokens": usage.prompt_tokens,
+                "input_tokens_details": {
+                    "cached_tokens": cached,
+                    "cache_write_tokens": written,
+                },
+                "output_tokens": usage.completion_tokens,
+                "output_tokens_details": {"reasoning_tokens": 0},
+                "total_tokens": usage.total_tokens,
+            },
+        }
+    )
+
+
 def responses(model: str, **kwargs: Any) -> Any:
     """Call a model through the OpenAI Responses API.
 
@@ -1654,6 +1903,10 @@ def responses(model: str, **kwargs: Any) -> Any:
     """
     from routehub.exceptions import map_exception
 
+    if _bridged(model, kwargs):
+        return _to_response(
+            completion(**_chat_args(model, kwargs)), kwargs
+        )
     call, resource, request = _responses_request(model, kwargs, False)
     try:
         return resource.create(**request)
@@ -1676,6 +1929,10 @@ async def aresponses(model: str, **kwargs: Any) -> Any:
     """
     from routehub.exceptions import map_exception
 
+    if _bridged(model, kwargs):
+        return _to_response(
+            await acompletion(**_chat_args(model, kwargs)), kwargs
+        )
     call, resource, request = _responses_request(model, kwargs, True)
     try:
         return await resource.create(**request)
