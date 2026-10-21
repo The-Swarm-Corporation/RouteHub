@@ -12,6 +12,7 @@ _DEFAULT_ENCODING = "o200k_base"
 
 # Fixed per-message and per-reply overheads of the chat format.
 _TOKENS_PER_MESSAGE = 3
+_TOKENS_PER_NAME = 1
 _TOKENS_PER_REPLY = 3
 
 
@@ -156,8 +157,11 @@ def token_counter(
         total += len(
             encode(model, _content_text(message.get("content")))
         )
+        for key in ("role", "name", "tool_call_id"):
+            if message.get(key):
+                total += len(encode(model, message[key]))
         if message.get("name"):
-            total += len(encode(model, message["name"]))
+            total += _TOKENS_PER_NAME
         for call in message.get("tool_calls") or []:
             total += len(encode(model, json.dumps(call)))
     return total + (_TOKENS_PER_REPLY if messages else 0)
