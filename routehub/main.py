@@ -1111,6 +1111,65 @@ def _mock_completion(
     )
 
 
+def _mock_responses(model: str, kwargs: dict) -> Any:
+    """Return a canned Response without calling any provider.
+
+    Args:
+        model (str): Model name to report.
+        kwargs (dict): responses arguments, including mock_response.
+
+    Returns:
+        Any: An OpenAI Response.
+    """
+    from openai.types.responses import Response
+
+    mock_response = kwargs["mock_response"]
+    if isinstance(mock_response, BaseException):
+        raise mock_response
+    if kwargs.get("stream"):
+        raise NotImplementedError("mock_response cannot stream")
+    text = str(mock_response)
+    prompt = _estimate_tokens(str(kwargs.get("input") or ""))
+    output = _estimate_tokens(text)
+    return Response.model_validate(
+        {
+            "id": f"resp_mock_{uuid.uuid4().hex}",
+            "object": "response",
+            "created_at": int(time.time()),
+            "model": model,
+            "status": "completed",
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+            "output": [
+                {
+                    "type": "message",
+                    "id": f"msg_mock_{uuid.uuid4().hex}",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": text,
+                            "annotations": [],
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": prompt,
+                "input_tokens_details": {
+                    "cached_tokens": 0,
+                    "cache_write_tokens": 0,
+                },
+                "output_tokens": output,
+                "output_tokens_details": {"reasoning_tokens": 0},
+                "total_tokens": prompt + output,
+            },
+        }
+    )
+
+
 def completion(
     model: str,
     messages: Optional[List[dict]] = None,
@@ -1624,8 +1683,6 @@ def _responses_request(
     """
     spec = inspect.signature(completion).parameters
     options = {n: kwargs.pop(n, spec[n].default) for n in _OPTIONS}
-    if options["mock_response"] is not None:
-        raise NotImplementedError("mock_response is not supported")
     input = kwargs.get("input")
     call = _build_call(model, [input], {}, options, kwargs)
     resource = _openai_client(call, is_async).responses
@@ -1652,6 +1709,8 @@ def responses(model: str, **kwargs: Any) -> Any:
     Returns:
         Any: An OpenAI Response, or its event stream when stream is on.
     """
+    if kwargs.get("mock_response") is not None:
+        return _mock_responses(model, kwargs)
     from routehub.exceptions import map_exception
 
     call, resource, request = _responses_request(model, kwargs, False)
@@ -1674,6 +1733,8 @@ async def aresponses(model: str, **kwargs: Any) -> Any:
     Returns:
         Any: An OpenAI Response, or its async event stream.
     """
+    if kwargs.get("mock_response") is not None:
+        return _mock_responses(model, kwargs)
     from routehub.exceptions import map_exception
 
     call, resource, request = _responses_request(model, kwargs, True)
