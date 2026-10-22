@@ -961,6 +961,60 @@ async def _anthropic_acomplete(call: _Call) -> Any:
     )
 
 
+def _bedrock_complete(call: _Call) -> Any:
+    """Send a chat request to the Bedrock Converse API.
+
+    Args:
+        call (_Call): The resolved request.
+
+    Returns:
+        Any: A ChatCompletion.
+    """
+    from routehub import bedrock
+    from routehub.exceptions import BadRequestError
+
+    if call.params.get("stream"):
+        raise BadRequestError(
+            "Bedrock streaming is not supported yet; "
+            "call without stream=True",
+            llm_provider="bedrock",
+            model=call.model,
+        )
+    client = call.client or http_client(
+        is_async=False,
+        ssl_verify=call.ssl_verify,
+        keepalive_expiry=call.keepalive_expiry,
+    )
+    return bedrock.complete(call, client)
+
+
+async def _bedrock_acomplete(call: _Call) -> Any:
+    """Send a chat request to the Bedrock Converse API asynchronously.
+
+    Args:
+        call (_Call): The resolved request.
+
+    Returns:
+        Any: A ChatCompletion.
+    """
+    from routehub import bedrock
+    from routehub.exceptions import BadRequestError
+
+    if call.params.get("stream"):
+        raise BadRequestError(
+            "Bedrock streaming is not supported yet; "
+            "call without stream=True",
+            llm_provider="bedrock",
+            model=call.model,
+        )
+    client = call.client or http_client(
+        is_async=True,
+        ssl_verify=call.ssl_verify,
+        keepalive_expiry=call.keepalive_expiry,
+    )
+    return await bedrock.acomplete(call, client)
+
+
 def _estimate_tokens(text: str) -> int:
     """Rough token count used only for mock responses.
 
@@ -1253,6 +1307,8 @@ def completion(
     started = time.perf_counter()
     if PROVIDERS[call.provider].native:
         response = _anthropic_complete(call)
+    elif call.provider == "bedrock":
+        response = _bedrock_complete(call)
     else:
         response = _openai_complete(call)
     _log(
@@ -1393,6 +1449,8 @@ async def acompletion(
     started = time.perf_counter()
     if PROVIDERS[call.provider].native:
         response = await _anthropic_acomplete(call)
+    elif call.provider == "bedrock":
+        response = await _bedrock_acomplete(call)
     else:
         response = await _openai_acomplete(call)
     _log(
@@ -1437,7 +1495,7 @@ def _embedding_request(
         options["api_base"] or options["base_url"],
         options["api_key"],
     )
-    if PROVIDERS[provider].native:
+    if PROVIDERS[provider].native or provider == "bedrock":
         raise BadRequestError(
             f"{provider} has no embeddings API.",
             llm_provider=provider,
@@ -1628,6 +1686,14 @@ def _responses_request(
         raise NotImplementedError("mock_response is not supported")
     input = kwargs.get("input")
     call = _build_call(model, [input], {}, options, kwargs)
+    if call.provider == "bedrock":
+        from routehub.exceptions import BadRequestError
+
+        raise BadRequestError(
+            "bedrock has no Responses API; use completion.",
+            llm_provider="bedrock",
+            model=model,
+        )
     resource = _openai_client(call, is_async).responses
     request = {**call.extras, "model": call.bare}
     if kwargs.get("metadata") is not None:
