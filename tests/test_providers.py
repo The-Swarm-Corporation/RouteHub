@@ -148,7 +148,7 @@ def test_unknown_provider_raises():
     with pytest.raises(rh.BadRequestError, match="not supported"):
         rh.get_llm_provider("mystery-model")
     with pytest.raises(rh.BadRequestError):
-        rh.get_llm_provider("x", custom_llm_provider="bedrock")
+        rh.get_llm_provider("x", custom_llm_provider="mystery")
 
 
 def test_only_anthropic_is_native():
