@@ -1133,3 +1133,122 @@ def test_responses_drop_params_drops_what_the_model_rejects(
         "input": "hi",
         "temperature": 0.2,
     }
+
+
+class _RecordingAsyncClient(httpx.AsyncClient):
+    def __init__(self, **kwargs):
+        kwargs.setdefault("timeout", 1.0)
+        super().__init__(**kwargs)
+        self.captured = dict(kwargs)
+
+
+class TestAiohttpTransport:
+    def _unresolved(self, clients):
+        clients._aiohttp_resolved = False
+        clients._aiohttp_factory = None
+
+    def test_env_off_disables_the_aiohttp_factory(self, monkeypatch):
+        from routehub import clients
+
+        self._unresolved(clients)
+        monkeypatch.setenv("ROUTEHUB_USE_AIOHTTP", "0")
+        monkeypatch.setattr(
+            clients, "find_spec", lambda name: object()
+        )
+        assert clients._resolve_aiohttp_factory() is None
+
+    def test_missing_aiohttp_install_disables_the_factory(
+        self, monkeypatch
+    ):
+        from routehub import clients
+
+        self._unresolved(clients)
+        monkeypatch.setenv("ROUTEHUB_USE_AIOHTTP", "1")
+        monkeypatch.setattr(clients, "find_spec", lambda name: None)
+        assert clients._resolve_aiohttp_factory() is None
+
+    def test_openai_before_3_disables_the_factory(self, monkeypatch):
+        from routehub import clients
+
+        self._unresolved(clients)
+        monkeypatch.setenv("ROUTEHUB_USE_AIOHTTP", "1")
+        monkeypatch.setattr(
+            clients, "find_spec", lambda name: object()
+        )
+        monkeypatch.setattr(openai, "__version__", "2.48.0")
+        assert clients._resolve_aiohttp_factory() is None
+
+    async def test_async_http_client_uses_the_factory_when_set(
+        self, monkeypatch
+    ):
+        from routehub import clients
+
+        clients._clients.clear()
+        monkeypatch.setattr(
+            clients, "_aiohttp_factory", _RecordingAsyncClient
+        )
+        monkeypatch.setattr(clients, "_aiohttp_resolved", True)
+        native = clients.http_client(is_async=True, ssl_verify=True)
+        assert isinstance(native, _RecordingAsyncClient)
+        assert native.captured["follow_redirects"] is True
+        assert native.captured["verify"] is True
+
+    async def test_async_sdk_client_gets_the_factory_transport(
+        self, monkeypatch
+    ):
+        from routehub import clients
+
+        clients._clients.clear()
+        monkeypatch.setattr(
+            clients, "_aiohttp_factory", _RecordingAsyncClient
+        )
+        monkeypatch.setattr(clients, "_aiohttp_resolved", True)
+        sdk = clients.openai_client(
+            "openai",
+            "k",
+            None,
+            is_async=True,
+            max_retries=0,
+            ssl_verify=True,
+        )
+        assert isinstance(sdk, openai.AsyncOpenAI)
+        assert isinstance(sdk._client, _RecordingAsyncClient)
+        assert sdk._client.captured["verify"] is True
+
+    async def test_transport_choice_is_part_of_the_cache_key(
+        self, monkeypatch
+    ):
+        from routehub import clients
+
+        clients._clients.clear()
+        monkeypatch.setattr(clients, "_aiohttp_factory", None)
+        monkeypatch.setattr(clients, "_aiohttp_resolved", True)
+        plain = clients.http_client(is_async=True, ssl_verify=True)
+        monkeypatch.setattr(
+            clients, "_aiohttp_factory", _RecordingAsyncClient
+        )
+        sped = clients.http_client(is_async=True, ssl_verify=True)
+        assert plain is not sped
+        assert isinstance(plain, httpx.AsyncClient)
+        assert isinstance(sped, _RecordingAsyncClient)
+
+    async def test_sync_clients_ignore_the_factory(self, monkeypatch):
+        from routehub import clients
+
+        clients._clients.clear()
+        monkeypatch.setattr(
+            clients, "_aiohttp_factory", _RecordingAsyncClient
+        )
+        monkeypatch.setattr(clients, "_aiohttp_resolved", True)
+        native = clients.http_client(is_async=False, ssl_verify=True)
+        sdk = clients.openai_client(
+            "openai",
+            "k",
+            None,
+            is_async=False,
+            max_retries=0,
+            ssl_verify=True,
+        )
+        assert isinstance(native, httpx.Client)
+        assert not isinstance(native, _RecordingAsyncClient)
+        assert not isinstance(sdk._client, _RecordingAsyncClient)

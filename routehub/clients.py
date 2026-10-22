@@ -1,13 +1,49 @@
 """Reusable SDK and HTTP clients, so connections stay pooled across calls."""
 
 import asyncio
+import os
 import threading
 from collections import OrderedDict
+from importlib.util import find_spec
 from typing import Any, Optional, Union
+
+from routehub._json import _OFF_VALUES
 
 _MAX_CLIENTS = 64
 _lock = threading.Lock()
 _clients: "OrderedDict[tuple, Any]" = OrderedDict()
+
+_aiohttp_factory: Any = None
+_aiohttp_resolved: bool = False
+
+
+def _resolve_aiohttp_factory() -> Any:
+    """openai's aiohttp-backed async client, or None to keep httpx.
+
+    Resolved on the first async client build, not at import, so importing
+    routehub stays free of third-party modules. openai 3.x vendors the
+    aiohttp bridge and needs only the aiohttp package; earlier SDKs fall
+    back to httpx.
+
+    Returns:
+        Any: The DefaultAioHttpClient class, or None for the httpx transport.
+    """
+    global _aiohttp_factory, _aiohttp_resolved
+    if _aiohttp_resolved:
+        return _aiohttp_factory
+    _aiohttp_resolved = True
+    setting = os.environ.get("ROUTEHUB_USE_AIOHTTP", "")
+    if setting.strip().lower() in _OFF_VALUES:
+        return None
+    import openai
+
+    if int(openai.__version__.split(".")[0]) < 3:
+        return None
+    factory = getattr(openai, "DefaultAioHttpClient", None)
+    if factory is None or find_spec("aiohttp") is None:
+        return None
+    _aiohttp_factory = factory
+    return factory
 
 
 def _loop_id(is_async: bool) -> Optional[Any]:
@@ -97,6 +133,7 @@ def openai_client(
     Returns:
         Any: An OpenAI SDK client.
     """
+    aiohttp = _resolve_aiohttp_factory() if is_async else None
     key = (
         "openai",
         provider == "azure",
@@ -109,16 +146,18 @@ def openai_client(
         max_retries,
         ssl_verify,
         keepalive_expiry,
+        aiohttp is not None,
     )
 
     def build() -> Any:
         import openai
 
-        factory = (
-            openai.DefaultAsyncHttpxClient
-            if is_async
-            else openai.DefaultHttpxClient
-        )
+        if aiohttp is not None:
+            factory = aiohttp
+        elif is_async:
+            factory = openai.DefaultAsyncHttpxClient
+        else:
+            factory = openai.DefaultHttpxClient
         http_client = factory(
             verify=ssl_verify, limits=_limits(keepalive_expiry)
         )
@@ -163,17 +202,25 @@ def http_client(
     Returns:
         Any: An httpx-compatible Client or AsyncClient.
     """
+    aiohttp = _resolve_aiohttp_factory() if is_async else None
     key = (
         "http",
         is_async,
         _loop_id(is_async),
         ssl_verify,
         keepalive_expiry,
+        aiohttp is not None,
     )
 
     def build() -> Any:
         from routehub._http import httpx
 
+        if aiohttp is not None:
+            return aiohttp(
+                verify=ssl_verify,
+                follow_redirects=True,
+                limits=_limits(keepalive_expiry),
+            )
         cls = httpx.AsyncClient if is_async else httpx.Client
         return cls(
             verify=ssl_verify,

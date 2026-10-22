@@ -40,6 +40,12 @@ uv add routehub
 pip install "routehub[fast]"
 ```
 
+For higher async throughput, install the `aiohttp` extra:
+
+```bash
+pip install "routehub[aiohttp]"
+```
+
 Set a provider key and make a call:
 
 ```bash
@@ -309,6 +315,7 @@ Also per call: `api_key`, `base_url` or `api_base`, `api_version` (Azure), `cust
 |---|---|
 | Provider keys and bases | See [Supported providers](#supported-providers). |
 | `ROUTEHUB_USE_ORJSON` | RouteHub uses `orjson` for JSON when it is installed (the `fast` extra). Set this to `0`, `false`, `no` or `off` to use the standard `json` module instead. Read once, on first use. |
+| `ROUTEHUB_USE_AIOHTTP` | RouteHub uses `openai.DefaultAioHttpClient` for async calls when the `aiohttp` extra is installed. Set this to `0`, `false`, `no` or `off` to keep the httpx transport. Read once, on the first async client build. |
 | `ROUTEHUB_GZIP_ON` | Set to `1`, `true`, `yes` or `on` to gzip Claude request bodies when a call doesn't pass `gzip=`. An explicit `gzip=False` still wins. Read on each call. |
 
 ## Error handling
@@ -436,7 +443,7 @@ Commands, invariants and PR conventions for contributors and coding agents are i
 
 ```bash
 uv sync
-uv run pytest                        # 231 offline tests, no API keys needed
+uv run pytest                        # 283 offline tests, no API keys needed
 uv run --extra fast pytest           # with orjson installed
 uv run --with "openai<3" pytest      # against openai 2.x
 uv run ruff check .                  # lint
