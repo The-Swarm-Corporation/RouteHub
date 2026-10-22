@@ -14,7 +14,7 @@ pip install routehub
 pip install "routehub[fast]"
 ```
 
-The `fast` extra adds orjson. Python 3.10+.
+The `fast` extra adds orjson. The `aiohttp` extra lets async calls use openai's aiohttp transport. Python 3.10+.
 
 ## Model strings
 
