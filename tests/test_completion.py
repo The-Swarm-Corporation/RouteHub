@@ -189,6 +189,27 @@ class TestRequestShaping:
         )
         assert recorder.last_json["max_tokens"] == 50
 
+    def test_max_completion_tokens_becomes_max_tokens_where_required(
+        self, mock_openai
+    ):
+        client, recorder = mock_openai(ok(), ok())
+        rh.completion(
+            model="mistral/mistral-small-latest",
+            messages=USER,
+            max_tokens=10,
+            max_completion_tokens=50,
+            client=client,
+        )
+        assert recorder.last_json["max_tokens"] == 50
+        assert "max_completion_tokens" not in recorder.last_json
+        rh.completion(
+            model="groq/llama-3.3-70b-versatile",
+            messages=USER,
+            max_completion_tokens=50,
+            client=client,
+        )
+        assert recorder.last_json["max_completion_tokens"] == 50
+
     def test_drop_params_strips_sampling_for_reasoning_models(
         self, mock_openai
     ):

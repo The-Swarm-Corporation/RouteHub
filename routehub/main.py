@@ -138,6 +138,17 @@ _RETRYABLE_STATUS = frozenset(
     {408, 409, 429, 500, 502, 503, 504, 529}
 )
 _ON_VALUES = frozenset({"1", "true", "yes", "on"})
+_MAX_TOKENS_ONLY_PROVIDERS = frozenset(
+    {
+        "cerebras",
+        "deepinfra",
+        "fireworks_ai",
+        "mistral",
+        "nvidia_nim",
+        "sambanova",
+        "xai",
+    }
+)
 
 
 def get_reasoning_efforts() -> Tuple[str, ...]:
@@ -510,6 +521,11 @@ def _openai_request(call: _Call) -> Tuple[dict, dict]:
             request["max_completion_tokens"] = request.pop(
                 "max_tokens"
             )
+    elif (
+        call.provider in _MAX_TOKENS_ONLY_PROVIDERS
+        and "max_completion_tokens" in request
+    ):
+        request["max_tokens"] = request.pop("max_completion_tokens")
     if request.get("reasoning_effort") == "None":
         request.pop("reasoning_effort")
     if not request.get("stream"):
