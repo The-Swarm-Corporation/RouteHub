@@ -282,6 +282,37 @@ class TestBuildRequest:
             {"type": "text", "text": "Rain", "cache_control": CACHE}
         ]
 
+    def test_tool_ids_from_other_providers_match_claudes_pattern(
+        self,
+    ):
+        body = build(
+            [
+                {"role": "user", "content": "Weather in Paris?"},
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "functions.weather:0",
+                            "type": "function",
+                            "function": {
+                                "name": "weather",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "functions.weather:0",
+                    "content": "Sunny",
+                },
+            ]
+        )
+        call = body["messages"][1]["content"][0]
+        result = body["messages"][2]["content"][0]
+        assert call["id"] == "functions_weather_0"
+        assert result["tool_use_id"] == call["id"]
+
     def test_tools_and_tool_choice_translate(self):
         tools = [
             {

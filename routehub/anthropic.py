@@ -38,6 +38,8 @@ ADAPTIVE_EFFORTS = {
 
 WEB_SEARCH_MAX_USES = {"low": 1, "medium": 5, "high": 10}
 
+_INVALID_ID_CHARS = re.compile(r"[^a-zA-Z0-9_-]")
+
 _CLAUDE_VERSION = re.compile(
     r"claude-(?:[a-z]+-)?(\d+)(?:-(\d{1,2})(?!\d))?"
 )
@@ -315,7 +317,9 @@ def _translate_messages(
                 blocks.append(
                     {
                         "type": "tool_use",
-                        "id": call.get("id"),
+                        "id": _INVALID_ID_CHARS.sub(
+                            "_", call.get("id") or ""
+                        ),
                         "name": function.get("name"),
                         "input": _tool_use_input(
                             function.get("arguments")
@@ -327,8 +331,12 @@ def _translate_messages(
         elif role in ("tool", "function"):
             result = {
                 "type": "tool_result",
-                "tool_use_id": message.get("tool_call_id")
-                or message.get("name"),
+                "tool_use_id": _INVALID_ID_CHARS.sub(
+                    "_",
+                    message.get("tool_call_id")
+                    or message.get("name")
+                    or "",
+                ),
             }
             content = _content_blocks(message.get("content"))
             if content:
