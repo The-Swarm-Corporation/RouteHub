@@ -9,12 +9,14 @@ from typing import Any, Iterator, List, Optional
 from routehub._json import dumps, loads
 from routehub.clients import http_client, openai_client
 from routehub.main import (
+    _RETRYABLE_STATUS,
     DEFAULT_NUM_RETRIES,
     _anthropic_prepare,
     _anthropic_send,
     _build_call,
     _openai_client,
     _openai_request,
+    _retry_delay,
     _split_args,
     completion,
 )
@@ -92,7 +94,7 @@ class BatchJob:
             )
 
     def _anthropic(self, method: str, path: str = "") -> Any:
-        """Send one Message Batches request for this batch.
+        """Send a Message Batches request, retrying retryable statuses.
 
         Args:
             method (str): HTTP method.
@@ -103,12 +105,19 @@ class BatchJob:
         """
         from routehub import anthropic
 
-        response = self.client.request(
-            method,
-            f"{anthropic.messages_url(self.api_base)}/batches/"
-            f"{self.id}{path}",
-            headers=anthropic.headers(self.api_key, None),
-        )
+        for attempt in range(DEFAULT_NUM_RETRIES + 1):
+            response = self.client.request(
+                method,
+                f"{anthropic.messages_url(self.api_base)}/batches/"
+                f"{self.id}{path}",
+                headers=anthropic.headers(self.api_key, None),
+            )
+            if (
+                response.status_code not in _RETRYABLE_STATUS
+                or attempt == DEFAULT_NUM_RETRIES
+            ):
+                break
+            time.sleep(_retry_delay(response, attempt))
         if response.status_code >= 400:
             raise anthropic.response_error(response, "")
         return response
