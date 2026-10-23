@@ -416,7 +416,7 @@ def _clean_messages(
 
     Args:
         messages (List[dict]): Chat messages, possibly carrying response-only
-            fields or Anthropic cache markers.
+            fields, Anthropic cache markers or litellm's image_url forms.
         keep_cache_control (bool): Leave cache_control markers in place.
 
     Returns:
@@ -436,18 +436,32 @@ def _clean_messages(
                 if k not in _RESPONSE_ONLY_KEYS
             }
         content = new.get("content")
-        if (
-            not keep_cache_control
-            and isinstance(content, list)
-            and any(
-                isinstance(p, dict) and "cache_control" in p
-                for p in content
-            )
-        ):
-            new = dict(new)
-            new["content"] = [
-                _strip_cache_control(p) for p in content
-            ]
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, dict):
+                    if not keep_cache_control:
+                        part = _strip_cache_control(part)
+                    kind = part.get("type")
+                    inner = part.get(kind)
+                    if kind == "image_url" and isinstance(inner, str):
+                        part = {**part, kind: {"url": inner}}
+                    elif (
+                        kind in ("image_url", "file")
+                        and isinstance(inner, dict)
+                        and "format" in inner
+                    ):
+                        part = {
+                            **part,
+                            kind: {
+                                k: v
+                                for k, v in inner.items()
+                                if k != "format"
+                            },
+                        }
+                parts.append(part)
+            if any(a is not b for a, b in zip(parts, content)):
+                new = {**new, "content": parts}
         if not keep_cache_control and "cache_control" in new:
             new = _strip_cache_control(new)
         changed = changed or new is not message
