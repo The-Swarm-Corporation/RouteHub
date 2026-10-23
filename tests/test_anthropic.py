@@ -110,6 +110,35 @@ class TestBuildRequest:
         ]
         assert results["content"][0]["cache_control"] == CACHE
 
+    def test_legacy_function_calls_pair_with_their_results(self):
+        call = {"name": "weather", "arguments": '{"city": "Oslo"}'}
+        body = build(
+            [
+                {"role": "user", "content": "Oslo, then again?"},
+                {"role": "assistant", "function_call": call},
+                {
+                    "role": "function",
+                    "name": "weather",
+                    "content": "4C",
+                },
+                {"role": "assistant", "function_call": call},
+                {
+                    "role": "function",
+                    "name": "weather",
+                    "content": "5C",
+                },
+            ]
+        )
+        _, first, result1, second, result2 = body["messages"]
+        uses = [first["content"][0], second["content"][0]]
+        assert [u["type"] for u in uses] == ["tool_use", "tool_use"]
+        assert uses[0]["input"] == {"city": "Oslo"}
+        assert uses[0]["id"] != uses[1]["id"]
+        assert [
+            result1["content"][0]["tool_use_id"],
+            result2["content"][0]["tool_use_id"],
+        ] == [uses[0]["id"], uses[1]["id"]]
+
     def test_images_become_base64_or_url_sources(self):
         body = build(
             [
