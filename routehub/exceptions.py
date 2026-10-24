@@ -255,7 +255,8 @@ def exception_for_status(
         llm_provider (str): Provider that raised it.
         model (str): Model that was called.
         response (Any): The HTTP response.
-        body (Optional[object]): The decoded error body.
+        body (Optional[object]): The decoded error body; its code
+            is matched along with the message.
 
     Returns:
         Exception: An instance of the matching RouteHub exception.
@@ -263,7 +264,8 @@ def exception_for_status(
     cls = _BY_STATUS.get(status_code)
     if cls is None:
         cls = InternalServerError if status_code >= 500 else APIError
-    lowered = (message or "").lower()
+    code = body.get("code") if isinstance(body, dict) else None
+    lowered = f"{message or ''} {code or ''}".lower()
     if cls is BadRequestError:
         if any(p in lowered for p in _CONTEXT_WINDOW_PHRASES):
             cls = ContextWindowExceededError
