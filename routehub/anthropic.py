@@ -627,7 +627,7 @@ def build_request(
         # Thinking cannot be combined with a forced tool call.
         body["tool_choice"] = (
             {"type": "auto"}
-            if thinking
+            if thinking_type in ("enabled", "adaptive")
             else {"type": "tool", "name": JSON_TOOL_NAME}
         )
 
