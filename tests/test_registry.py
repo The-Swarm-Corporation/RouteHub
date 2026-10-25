@@ -251,6 +251,27 @@ class TestServingProviders:
             rh.get_model_info(name)
         assert rh.supports_vision(name) is False
 
+    def test_a_size_or_release_is_never_guessed(self, monkeypatch):
+        entries = [
+            *CATALOG,
+            {"id": "deepseek/deepseek-r1-0528"},
+            {"id": "qwen/qwen-2.5-coder-32b-instruct"},
+            {"id": "meta-llama/llama-3.1-8b-instruct"},
+            {"id": "openai/gpt-3.5-turbo"},
+        ]
+        monkeypatch.setattr(registry, "_fetch", lambda: entries)
+        for name in (
+            "groq/deepseek-r1-distill-llama-70b",
+            "deepinfra/Qwen/Qwen2.5-Coder-7B",
+            "perplexity/llama-3.1-sonar-large-128k-online",
+        ):
+            with pytest.raises(rh.ModelNotMappedError):
+                rh.get_model_info(name)
+        assert (
+            rh.get_model_info("openai/gpt-3.5-turbo-0125")["key"]
+            == "openai/gpt-3.5-turbo"
+        )
+
     def test_strip_serving_suffixes(self):
         strip = registry._strip_serving_suffixes
         assert strip("llama-3.3-70b-versatile") == "llama-3.3-70b"

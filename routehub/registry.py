@@ -480,7 +480,8 @@ def _match_stem(stem: str, vendor: Optional[str]) -> Optional[str]:
     """Find the catalog model a name stem most plausibly refers to.
 
     Tries the stem itself, the stem with OpenRouter's usual "-instruct"
-    suffix, then the shortest catalog name that extends the stem.
+    suffix, then the shortest catalog name that extends the stem with
+    words only, never with a size, version or release number.
 
     Args:
         stem (str): A normalized name with serving suffixes removed.
@@ -495,10 +496,13 @@ def _match_stem(stem: str, vendor: Optional[str]) -> Optional[str]:
             return model_id
     prefix = f"{stem}-"
     for name in _bare_names:
-        if name.startswith(prefix):
-            model_id = _alias_for(name, vendor)
-            if model_id is not None:
-                return model_id
+        if not name.startswith(prefix) or any(
+            ch.isdigit() for ch in name[len(prefix) :]
+        ):
+            continue
+        model_id = _alias_for(name, vendor)
+        if model_id is not None:
+            return model_id
     return None
 
 
