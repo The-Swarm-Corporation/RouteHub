@@ -34,15 +34,14 @@ def _encoding_for(model: str) -> Any:
         return None
     name = model.split("/")[-1] if model else ""
     try:
-        return tiktoken.encoding_for_model(name)
-    except KeyError:
-        pass
-    try:
-        return tiktoken.get_encoding(_DEFAULT_ENCODING)
+        try:
+            return tiktoken.encoding_for_model(name)
+        except KeyError:
+            return tiktoken.get_encoding(_DEFAULT_ENCODING)
     except Exception as error:
         # Raised offline before tiktoken has cached its vocabulary file.
         logger.warning(
-            f"Could not load the {_DEFAULT_ENCODING} tokenizer ({error}); "
+            f"Could not load a tokenizer for {model!r} ({error}); "
             "token counts are estimates."
         )
         return None

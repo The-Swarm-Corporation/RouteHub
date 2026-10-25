@@ -71,6 +71,23 @@ class TestTokenizer:
         )
         assert len(rh.encode(model="anything", text="a" * 40)) == 10
 
+    def test_openai_models_estimate_when_tiktoken_cannot_load(
+        self, monkeypatch
+    ):
+        import tiktoken
+
+        def offline(name):
+            raise ConnectionError("vocabulary download failed")
+
+        monkeypatch.setattr(tiktoken, "encoding_for_model", offline)
+        monkeypatch.setattr(tiktoken, "get_encoding", offline)
+        tokenizer._encoding_for.cache_clear()
+        try:
+            assert len(rh.encode("gpt-4o", "a" * 40)) == 10
+            assert rh.token_counter(text="a" * 40) == 10
+        finally:
+            tokenizer._encoding_for.cache_clear()
+
     def test_unknown_models_use_the_default_encoding(self):
         assert rh.encode(
             model="claude-sonnet-4-6", text="hi"
