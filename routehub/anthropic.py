@@ -664,8 +664,8 @@ def headers(
     """Build the request headers.
 
     Args:
-        api_key (Optional[str]): Anthropic API key; left out when None,
-            so a caller's client can send its own.
+        api_key (Optional[str]): Anthropic API key; left out when unset
+            or empty, so a caller's client can send its own.
         extra_headers (Optional[dict]): Additional headers, such as anthropic-beta.
 
     Returns:
