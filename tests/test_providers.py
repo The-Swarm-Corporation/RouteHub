@@ -144,6 +144,23 @@ def test_api_base_without_a_provider_means_openai_compatible():
     )
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        "mistral-community/pixtral-12b",
+    ],
+)
+def test_org_prefixed_name_is_not_a_hosted_model(monkeypatch, model):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
+    monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
+    assert rh.get_llm_provider(
+        model, api_base="http://vllm.local/v1"
+    ) == (model, "openai_like", "EMPTY", "http://vllm.local/v1")
+    with pytest.raises(rh.BadRequestError, match="not supported"):
+        rh.get_llm_provider(model)
+
+
 def test_unknown_provider_raises():
     with pytest.raises(rh.BadRequestError, match="not supported"):
         rh.get_llm_provider("mystery-model")

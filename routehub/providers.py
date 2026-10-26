@@ -308,6 +308,7 @@ def split_model(
         canonical = _canonical(prefix)
         if canonical in PROVIDERS:
             return rest, canonical
+        return model, None
     return model, _guess_provider(model)
 
 
