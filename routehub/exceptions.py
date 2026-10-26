@@ -172,10 +172,12 @@ class Timeout(openai.APITimeoutError):
         """
         self.llm_provider = llm_provider
         self.model = model
-        super().__init__(
-            request=request or httpx.Request("POST", _PLACEHOLDER_URL)
+        openai.APIConnectionError.__init__(
+            self,
+            message=message,
+            request=request
+            or httpx.Request("POST", _PLACEHOLDER_URL),
         )
-        self.message = message
 
 
 class APIConnectionError(openai.APIConnectionError):
