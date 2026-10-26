@@ -325,6 +325,44 @@ class TestBatches:
         with pytest.raises(rh.BadRequestError, match="bad method"):
             job.results()
 
+    def test_groq_context_error_matches_direct_call(
+        self, mock_openai
+    ):
+        error = {
+            "error": {
+                "message": "Please reduce the length of the messages or completion.",
+                "type": "invalid_request_error",
+                "code": "context_length_exceeded",
+            }
+        }
+        client, _ = mock_openai(
+            httpx.Response(400, json=error),
+            httpx.Response(
+                200,
+                json={
+                    "id": "batch_1",
+                    "status": "completed",
+                    "error_file_id": "file-err",
+                    "request_counts": {"total": 1},
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    "custom_id": "0",
+                    "response": {"status_code": 400, "body": error},
+                },
+            ),
+        )
+        with pytest.raises(rh.ContextWindowExceededError):
+            rh.completion(
+                model="groq/llama-3.1-8b-instant",
+                messages=USER,
+                client=client,
+            )
+        [result] = rh.BatchJob("groq", "batch_1", client).results()
+        assert isinstance(result, rh.ContextWindowExceededError)
+
     def test_claude_batch_is_gzipped_when_asked(self, mock_http):
         client, recorder = mock_http(
             httpx.Response(
