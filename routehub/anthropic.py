@@ -295,6 +295,7 @@ def _translate_messages(
     """
     system: List[dict] = []
     turns: List[dict] = []
+    call_ids: Dict[str, str] = {}
     for message in messages:
         role = message.get("role")
         blocks: List[dict] = []
@@ -310,8 +311,17 @@ def _translate_messages(
                 dict(b) for b in message.get("thinking_blocks") or []
             ]
             blocks.extend(_content_blocks(message.get("content")))
-            for call in message.get("tool_calls") or []:
+            calls = list(message.get("tool_calls") or [])
+            if message.get("function_call"):
+                calls.append(
+                    {
+                        "id": f"call_{len(turns)}",
+                        "function": message["function_call"],
+                    }
+                )
+            for call in calls:
                 function = call.get("function") or {}
+                call_ids[function.get("name")] = call.get("id")
                 blocks.append(
                     {
                         "type": "tool_use",
@@ -328,6 +338,7 @@ def _translate_messages(
             result = {
                 "type": "tool_result",
                 "tool_use_id": message.get("tool_call_id")
+                or call_ids.get(message.get("name"))
                 or message.get("name"),
             }
             content = _content_blocks(message.get("content"))
