@@ -815,6 +815,25 @@ class TestResponseTranslation:
         assert completion.choices[0].message.tool_calls is None
         assert completion.choices[0].finish_reason == "stop"
 
+    def test_json_mode_drops_text_written_before_the_json_tool(self):
+        blocks = [
+            {"type": "text", "text": "Here it is: "},
+            {
+                "type": "tool_use",
+                "id": "t",
+                "name": anthropic.JSON_TOOL_NAME,
+                "input": {"a": 1},
+            },
+        ]
+        completion = anthropic.to_chat_completion(
+            message_response(blocks, stop_reason="tool_use"),
+            "m",
+            True,
+        )
+        assert json.loads(completion.choices[0].message.content) == {
+            "a": 1
+        }
+
 
 STREAM_EVENTS = [
     (
@@ -1028,6 +1047,55 @@ class TestStreamTranslation:
         else:
             assert names == {0: "now"}
             assert json.loads(args[0]) == {}
+
+    @pytest.mark.parametrize("calls_tool", [True, False])
+    def test_json_mode_streams_only_the_json_answer(self, calls_tool):
+        translator = anthropic.StreamTranslator(
+            "m", include_usage=False, json_mode=True
+        )
+        tool = {
+            "type": "tool_use",
+            "id": "t",
+            "name": anthropic.JSON_TOOL_NAME,
+            "input": {},
+        }
+        events = [
+            (
+                "content_block_start",
+                {"index": 0, "content_block": {"type": "text"}},
+            ),
+            (
+                "content_block_delta",
+                {
+                    "index": 0,
+                    "delta": {"type": "text_delta", "text": "Here: "},
+                },
+            ),
+        ]
+        if calls_tool:
+            events += [
+                (
+                    "content_block_start",
+                    {"index": 1, "content_block": tool},
+                ),
+                (
+                    "content_block_delta",
+                    {
+                        "index": 1,
+                        "delta": {
+                            "type": "input_json_delta",
+                            "partial_json": '{"a": 1}',
+                        },
+                    },
+                ),
+            ]
+        events += [("message_delta", {"delta": {}})] * 2
+        chunks = [
+            c for e, d in events for c in translator.handle(e, d)
+        ]
+        text, _, _, _, finish, _ = collect(chunks)
+        assert text == ('{"a": 1}' if calls_tool else "Here: ")
+        assert finish == "stop"
 
     def test_server_tool_input_is_not_streamed_as_a_tool_call(self):
         translator = anthropic.StreamTranslator(
