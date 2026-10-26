@@ -388,6 +388,38 @@ class TestRequestShaping:
             "cache_control"
         ] == {"type": "ephemeral"}
 
+    def test_litellm_image_url_forms_are_sent_as_openai_objects(
+        self, mock_openai
+    ):
+        client, recorder = mock_openai(ok())
+        uri = "data:image/png;base64,iVBORw0KGgo="
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe"},
+                    {"type": "image_url", "image_url": uri},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": uri,
+                            "format": "image/png",
+                        },
+                    },
+                ],
+            }
+        ]
+        rh.completion(
+            model="gpt-4o", messages=messages, client=client
+        )
+        image = {"type": "image_url", "image_url": {"url": uri}}
+        assert recorder.last_json["messages"][0]["content"] == [
+            {"type": "text", "text": "Describe"},
+            image,
+            image,
+        ]
+        assert messages[0]["content"][2]["image_url"]["format"]
+
     def test_response_only_fields_are_removed_from_history(
         self, mock_openai
     ):
