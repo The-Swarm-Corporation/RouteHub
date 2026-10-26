@@ -288,7 +288,7 @@ response = routehub.completion(model="gpt-5.4-mini", messages=messages, mock_res
 routehub.completion(model="gpt-5.4-mini", messages=messages, mock_response=TimeoutError("simulated outage"))
 ```
 
-`mock_response` returns a real `ChatCompletion`, or a stream when `stream=True`, without any network call or API key. Pass an exception to rehearse failure handling.
+`mock_response` returns a real `ChatCompletion`, or a stream when `stream=True`, without any network call or API key. Pass an exception to rehearse failure handling. `responses` and `aresponses` take it too and return a real `Response`; a mocked Responses stream is not supported yet.
 
 ## Configuration
 
