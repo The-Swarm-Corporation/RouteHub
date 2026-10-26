@@ -312,13 +312,7 @@ def _build_call(
         options["api_base"] or options["base_url"],
         options["api_key"],
     )
-    api_version = options["api_version"]
-    if provider == "azure" and not api_version:
-        import os
-
-        api_version = os.environ.get(
-            "AZURE_API_VERSION"
-        ) or os.environ.get("OPENAI_API_VERSION")
+    api_version = _api_version(provider, options["api_version"])
     if not api_key and options["client"] is None:
         names = " or ".join(PROVIDERS[provider].key_env) or "api_key"
         raise AuthenticationError(
@@ -381,6 +375,27 @@ def _build_call(
         timeout=timeout,
         verbose=bool(options["set_verbose"]),
         client=options["client"],
+    )
+
+
+def _api_version(
+    provider: str, api_version: Optional[str]
+) -> Optional[str]:
+    """Resolve the Azure API version, falling back to the environment.
+
+    Args:
+        provider (str): Resolved provider name.
+        api_version (Optional[str]): The api_version argument.
+
+    Returns:
+        Optional[str]: The API version to use.
+    """
+    if provider != "azure" or api_version:
+        return api_version
+    import os
+
+    return os.environ.get("AZURE_API_VERSION") or os.environ.get(
+        "OPENAI_API_VERSION"
     )
 
 
@@ -1533,6 +1548,9 @@ def _embedding_request(
             llm_provider=provider,
             model=model,
         )
+    options["api_version"] = _api_version(
+        provider, options["api_version"]
+    )
     retries = options["num_retries"]
     client = options["client"] or openai_client(
         provider,
