@@ -18,8 +18,8 @@ class Provider:
             the OpenAI-compatible endpoint.
         default_key (Optional[str]): Key to send when none is configured, for
             local servers that ignore it.
-        base_suffix (str): Path appended to a base URL taken from base_env
-            when it is missing.
+        base_suffix (str): Path appended to a base URL from api_base or
+            base_env when it is missing.
     """
 
     name: str
@@ -345,14 +345,12 @@ def get_llm_provider(
         )
     spec = PROVIDERS[provider]
     key = api_key or _first_env(spec.key_env) or spec.default_key
-    base = api_base
-    if not base:
-        base = _first_env(spec.base_env)
-        if (
-            base
-            and spec.base_suffix
-            and not base.rstrip("/").endswith(spec.base_suffix)
-        ):
-            base = base.rstrip("/") + spec.base_suffix
+    base = api_base or _first_env(spec.base_env)
+    if (
+        base
+        and spec.base_suffix
+        and not base.rstrip("/").endswith(spec.base_suffix)
+    ):
+        base = base.rstrip("/") + spec.base_suffix
     base = base or spec.base_url
     return bare, provider, key, base
