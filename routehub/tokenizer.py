@@ -71,7 +71,8 @@ def encode(
         model (str): Model whose tokenizer to use.
         text (str): The text to tokenize.
         custom_tokenizer (Optional[Any]): An object with an encode method to
-            use instead.
+            use instead, such as a Hugging Face Tokenizer, or a dict holding
+            one under "tokenizer".
 
     Returns:
         List[int]: Token ids. When no tokenizer can be loaded, placeholder
@@ -80,7 +81,8 @@ def encode(
     if custom_tokenizer is not None:
         if isinstance(custom_tokenizer, dict):
             custom_tokenizer = custom_tokenizer["tokenizer"]
-        return list(custom_tokenizer.encode(text))
+        tokens = custom_tokenizer.encode(text)
+        return list(getattr(tokens, "ids", tokens))
     encoding = _encoding_for(model or "gpt-4o")
     if encoding is None:
         return _estimate(text)
