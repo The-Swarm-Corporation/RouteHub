@@ -19,6 +19,7 @@ from typing import (
     Union,
     get_args,
 )
+from urllib.parse import urljoin
 
 from routehub._json import dumps, loads
 from routehub.clients import http_client, openai_client
@@ -1506,8 +1507,8 @@ def _embedding_request(
         is_async (bool): Whether to use the async client.
 
     Returns:
-        Tuple[Any, dict, str]: The embeddings resource, create() arguments,
-        and the provider.
+        Tuple[Any, dict, str]: The function that sends the request, its
+        arguments, and the provider.
     """
     from routehub.exceptions import (
         AuthenticationError,
@@ -1546,6 +1547,33 @@ def _embedding_request(
         keepalive_expiry=options["keepalive_expiry"],
         api_version=options["api_version"],
     )
+    timeout = options["timeout"]
+    if timeout is None:
+        timeout = options["request_timeout"]
+    input_type = options["kwargs"].get("input_type")
+    if provider == "cohere" and input_type is not None:
+        kind = encoding_format or "float"
+        body = {
+            "model": bare,
+            "texts": [input] if isinstance(input, str) else input,
+            "input_type": input_type,
+            "embedding_types": [kind],
+        }
+        if dimensions is not None:
+            body["output_dimension"] = dimensions
+        request = {
+            "path": urljoin(str(client.base_url), "/v2/embed"),
+            "cast_to": object,
+            "body": {**body, **(options["extra_body"] or {})},
+            "options": {
+                "headers": options["extra_headers"] or {},
+                "timeout": timeout,
+                "post_parser": lambda raw: _cohere_embedding(
+                    raw, bare, kind
+                ),
+            },
+        }
+        return client.post, request, provider
     request = {"model": bare, "input": input}
     if dimensions is not None:
         request["dimensions"] = dimensions
@@ -1553,13 +1581,36 @@ def _embedding_request(
         request["encoding_format"] = encoding_format
     if user is not None:
         request["user"] = user
-    timeout = options["timeout"]
-    request["timeout"] = (
-        options["request_timeout"] if timeout is None else timeout
-    )
+    request["timeout"] = timeout
     request["extra_headers"] = options["extra_headers"]
     request["extra_body"] = options["extra_body"]
-    return client.embeddings, request, provider
+    return client.embeddings.create, request, provider
+
+
+def _cohere_embedding(raw: dict, model: str, kind: str) -> Any:
+    """Turn a Cohere v2 embed response into an OpenAI one.
+
+    Args:
+        raw (dict): The decoded Cohere response.
+        model (str): Model that was called.
+        kind (str): The embedding type that was requested.
+
+    Returns:
+        Any: An OpenAI CreateEmbeddingResponse.
+    """
+    from openai.types import CreateEmbeddingResponse
+
+    billed = (raw.get("meta") or {}).get("billed_units") or {}
+    tokens = billed.get("input_tokens", 0)
+    return CreateEmbeddingResponse.construct(
+        object="list",
+        model=model,
+        data=[
+            {"object": "embedding", "index": i, "embedding": vector}
+            for i, vector in enumerate(raw["embeddings"][kind])
+        ],
+        usage={"prompt_tokens": tokens, "total_tokens": tokens},
+    )
 
 
 def embedding(
@@ -1604,7 +1655,9 @@ def embedding(
         request_timeout (float): Request timeout in seconds.
         timeout (Optional[Union[float, Any]]): Overrides request_timeout.
         client (Optional[Any]): A preconfigured OpenAI client to use.
-        **kwargs (Any): Ignored litellm options.
+        **kwargs (Any): input_type, which sends a Cohere model to
+            Cohere's native embed endpoint; other litellm options are
+            ignored.
 
     Returns:
         Any: An OpenAI CreateEmbeddingResponse.
@@ -1612,7 +1665,7 @@ def embedding(
     options = dict(locals())
     from routehub.exceptions import map_exception
 
-    resource, request, provider = _embedding_request(
+    create, request, provider = _embedding_request(
         model,
         input,
         dimensions,
@@ -1622,7 +1675,7 @@ def embedding(
         False,
     )
     try:
-        return resource.create(**request)
+        return create(**request)
     except Exception as error:
         mapped = map_exception(error, provider, model)
         if mapped is error:
@@ -1672,7 +1725,9 @@ async def aembedding(
         request_timeout (float): Request timeout in seconds.
         timeout (Optional[Union[float, Any]]): Overrides request_timeout.
         client (Optional[Any]): A preconfigured async OpenAI client to use.
-        **kwargs (Any): Ignored litellm options.
+        **kwargs (Any): input_type, which sends a Cohere model to
+            Cohere's native embed endpoint; other litellm options are
+            ignored.
 
     Returns:
         Any: An OpenAI CreateEmbeddingResponse.
@@ -1680,11 +1735,11 @@ async def aembedding(
     options = dict(locals())
     from routehub.exceptions import map_exception
 
-    resource, request, provider = _embedding_request(
+    create, request, provider = _embedding_request(
         model, input, dimensions, encoding_format, user, options, True
     )
     try:
-        return await resource.create(**request)
+        return await create(**request)
     except Exception as error:
         mapped = map_exception(error, provider, model)
         if mapped is error:
