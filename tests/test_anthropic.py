@@ -1,5 +1,6 @@
 """The native Anthropic adapter: request, response and stream translation."""
 
+import base64
 import gzip
 import json
 
@@ -149,6 +150,44 @@ class TestBuildRequest:
                 "url": "https://example.com/cat.jpg",
             },
         }
+
+    def test_image_media_type_comes_from_the_bytes(self):
+        images = [
+            ("image/jpeg", b"\x89PNG\r\n\x1a\n" + bytes(8)),
+            ("image/jpg", b"\xff\xd8\xff\xe0" + bytes(12)),
+            ("image/png", b"RIFF\x00\x00\x00\x00WEBPVP8 "),
+            ("image/jpeg", b"GIF89a" + bytes(10)),
+        ]
+        uris = [
+            f"data:{label};base64,{base64.b64encode(raw).decode()}"
+            for label, raw in images
+        ]
+        body = build(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": u}}
+                        for u in uris[:3]
+                    ]
+                    + [
+                        {
+                            "type": "file",
+                            "file": {"file_data": uris[3]},
+                        }
+                    ],
+                }
+            ]
+        )
+        assert [
+            (b["type"], b["source"]["media_type"])
+            for b in body["messages"][0]["content"]
+        ] == [
+            ("image", "image/png"),
+            ("image", "image/jpeg"),
+            ("image", "image/webp"),
+            ("image", "image/gif"),
+        ]
 
     def test_file_urls_become_url_document_sources(self):
         url = "https://example.com/report.pdf"

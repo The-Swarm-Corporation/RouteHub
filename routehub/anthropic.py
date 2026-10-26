@@ -5,6 +5,7 @@ cached-token usage, so Claude is called through its own API and the results are
 returned as OpenAI SDK objects.
 """
 
+import base64
 import re
 import time
 import uuid
@@ -73,6 +74,12 @@ _NO_THINKING_PREFIXES = (
     "claude-3-sonnet",
     "claude-3-opus",
     "claude-3-5",
+)
+
+_IMAGE_SIGNATURES = (
+    (b"\x89PNG", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF8", "image/gif"),
 )
 
 _NATIVE_BLOCKS = frozenset(
@@ -144,12 +151,22 @@ def _parse_data_uri(url: str) -> Optional[Tuple[str, str]]:
         url (str): A URL that may be a data URI.
 
     Returns:
-        Optional[Tuple[str, str]]: Media type and payload, or None for other URLs.
+        Optional[Tuple[str, str]]: Media type, read from the bytes of a
+        PNG, JPEG, GIF or WebP image, and payload, or None for other URLs.
     """
     if not url.startswith("data:"):
         return None
     header, _, data = url.partition(",")
     media_type = header[5:].split(";")[0] or "image/jpeg"
+    try:
+        head = base64.b64decode(data[:16])
+    except ValueError:
+        return media_type, data
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp", data
+    for signature, sniffed in _IMAGE_SIGNATURES:
+        if head.startswith(signature):
+            return sniffed, data
     return media_type, data
 
 
