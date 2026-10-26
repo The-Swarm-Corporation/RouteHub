@@ -419,18 +419,26 @@ def _translate_tool_choice(
     return result
 
 
-def _json_schema(response_format: Any) -> Optional[dict]:
-    """Extract the JSON schema from an OpenAI json_schema response_format.
+def _json_schema(response_format: Any, model: str) -> Optional[dict]:
+    """Extract the JSON schema from an OpenAI JSON response_format.
 
     Args:
         response_format (Any): The response_format parameter.
+        model (str): Bare Claude model name.
 
     Returns:
-        Optional[dict]: The schema, or None when no schema was requested.
+        Optional[dict]: The schema, or None when no schema applies:
+            no JSON format, or json_object on a model that rejects a
+            forced tool.
     """
     if not isinstance(response_format, dict):
         return None
-    if response_format.get("type") != "json_schema":
+    kind = response_format.get("type")
+    if kind == "json_object" and not _rejects_forced_tool_choice(
+        model
+    ):
+        return {"type": "object"}
+    if kind != "json_schema":
         return None
     spec = response_format.get("json_schema") or {}
     return spec.get("schema") or {"type": "object"}
@@ -604,7 +612,7 @@ def build_request(
             tool["max_uses"] = uses
         body.setdefault("tools", []).append(tool)
 
-    schema = _json_schema(params.get("response_format"))
+    schema = _json_schema(params.get("response_format"), model)
     json_mode = schema is not None
     if json_mode and _rejects_forced_tool_choice(model):
         body["output_config"] = {

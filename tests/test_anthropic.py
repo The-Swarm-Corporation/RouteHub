@@ -1144,6 +1144,40 @@ class TestCompletionThroughAnthropic:
         assert recorder.last_json["model"] == "claude-sonnet-4-6"
         assert recorder.last_json["max_tokens"] == 100
 
+    def test_json_object_is_enforced_through_the_json_tool(
+        self, mock_http
+    ):
+        answer = {"colors": ["red", "blue"]}
+        client, recorder = mock_http(
+            httpx.Response(
+                200,
+                json=message_response(
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_1",
+                            "name": anthropic.JSON_TOOL_NAME,
+                            "input": answer,
+                        }
+                    ],
+                    stop_reason="tool_use",
+                ),
+            )
+        )
+        response = rh.completion(
+            model="claude-sonnet-4-6",
+            messages=messages("Two colors as JSON"),
+            response_format={"type": "json_object"},
+            client=client,
+        )
+        assert recorder.last_json["tool_choice"] == {
+            "type": "tool",
+            "name": anthropic.JSON_TOOL_NAME,
+        }
+        choice = response.choices[0]
+        assert json.loads(choice.message.content) == answer
+        assert choice.finish_reason == "stop"
+
     def test_json_schema_uses_structured_outputs_on_claude_5_5(
         self, mock_http
     ):
