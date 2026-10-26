@@ -233,18 +233,22 @@ def _content_blocks(content: Any) -> List[dict]:
     if content is None:
         return []
     if isinstance(content, str):
-        return [{"type": "text", "text": content}] if content else []
+        return (
+            [{"type": "text", "text": content}]
+            if content.strip()
+            else []
+        )
     blocks = []
     for part in content:
         if isinstance(part, str):
-            if part:
+            if part.strip():
                 blocks.append({"type": "text", "text": part})
             continue
         if not isinstance(part, dict):
             continue
         kind = part.get("type")
         if kind == "text":
-            if not part.get("text"):
+            if not (part.get("text") or "").strip():
                 continue
             block = {"type": "text", "text": part["text"]}
         elif kind == "image_url":
