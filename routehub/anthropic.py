@@ -1151,7 +1151,8 @@ def response_error(response: Any, model: str) -> Exception:
         model (str): Model that was called.
 
     Returns:
-        Exception: The matching RouteHub exception.
+        Exception: The matching RouteHub exception, whose body is the
+        error object, as on the OpenAI SDK path and in stream_error.
     """
     from routehub.exceptions import exception_for_status
 
@@ -1171,5 +1172,5 @@ def response_error(response: Any, model: str) -> Exception:
         "anthropic",
         model,
         response=response,
-        body=body,
+        body=error if isinstance(error, dict) else body,
     )

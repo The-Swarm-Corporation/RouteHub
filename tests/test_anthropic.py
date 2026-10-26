@@ -1264,6 +1264,28 @@ class TestCompletionThroughAnthropic:
                 num_retries=3,
             )
 
+    def test_error_status_body_matches_a_stream_error_event(
+        self, mock_http
+    ):
+        error = {
+            "type": "invalid_request_error",
+            "message": "max_tokens: 0 must be at least 1",
+        }
+        client, _ = mock_http(
+            httpx.Response(
+                400, json={"type": "error", "error": error}
+            )
+        )
+        with pytest.raises(rh.BadRequestError) as raised:
+            rh.completion(
+                model="claude-sonnet-4-6",
+                messages=messages(),
+                client=client,
+            )
+        streamed = anthropic.stream_error(error, "claude-sonnet-4-6")
+        assert raised.value.body == streamed.body == error
+        assert raised.value.type == "invalid_request_error"
+
     def test_retries_rate_limits_then_succeeds(self, mock_http):
         client, recorder = mock_http(
             httpx.Response(
