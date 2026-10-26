@@ -466,6 +466,35 @@ class TestRequestShaping:
             messages=[message.model_dump(exclude_none=True)],
         )
 
+    def test_response_tool_calls_in_a_dict_message_are_accepted(
+        self, mock_http
+    ):
+        call = {"name": "f", "arguments": '{"a": 1}'}
+        message = openai.types.chat.ChatCompletionMessage(
+            role="assistant",
+            tool_calls=[
+                {"id": "1", "type": "function", "function": call}
+            ],
+        )
+        history = USER + [
+            {"role": "assistant", "tool_calls": message.tool_calls},
+            {"role": "tool", "tool_call_id": "1", "content": "S"},
+        ]
+        claude, recorder = mock_http(httpx.Response(200, json={}))
+        rh.completion(
+            model="claude-sonnet-4-6",
+            messages=history,
+            client=claude,
+            api_key="k",
+        )
+        sent = recorder.last_json["messages"][1]["content"]
+        assert sent[0]["input"] == {"a": 1}
+        assert rh.token_counter(
+            model="gpt-4o", messages=history
+        ) == rh.token_counter(
+            model="gpt-4o", messages=[*USER, message, history[2]]
+        )
+
     def test_pydantic_response_format_becomes_json_schema(
         self, mock_openai
     ):

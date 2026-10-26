@@ -23,6 +23,7 @@ from typing import (
 from routehub._json import dumps, loads
 from routehub.clients import http_client, openai_client
 from routehub.providers import PROVIDERS, get_llm_provider
+from routehub.tokenizer import _plain_message
 
 ReasoningEffort = Literal[
     "none", "minimal", "low", "medium", "high", "xhigh"
@@ -361,14 +362,7 @@ def _build_call(
         api_base=api_base,
         api_version=api_version,
         organization=organization,
-        messages=[
-            (
-                m.model_dump(exclude_none=True)
-                if hasattr(m, "model_dump")
-                else m
-            )
-            for m in messages
-        ],
+        messages=[_plain_message(m) for m in messages],
         params=params,
         extras=extras,
         extra_headers=headers or None,
