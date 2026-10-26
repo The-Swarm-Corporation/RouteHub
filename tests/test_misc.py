@@ -114,10 +114,31 @@ class TestTokenizer:
             },
         ]
         count = rh.token_counter(model="gpt-4o", messages=messages)
-        text_only = len(rh.encode("gpt-4o", "Be brief.")) + len(
-            rh.encode("gpt-4o", "Hi")
+        parts = ("Be brief.", "Hi", "system", "user")
+        text = sum(len(rh.encode("gpt-4o", p)) for p in parts)
+        assert count == text + 2 * 3 + 3
+
+    def test_token_counter_matches_openai_prompt_tokens(self):
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant.",
+            },
+            {"role": "user", "content": "Hello!"},
+        ]
+        assert (
+            rh.token_counter(model="gpt-4o", messages=messages) == 19
         )
-        assert count == text_only + 2 * 3 + 3
+        named = [{"role": "user", "name": "bob", "content": "hi"}]
+        assert rh.token_counter(model="gpt-4o", messages=named) == 10
+        tool = [
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "sunny",
+            }
+        ]
+        assert rh.token_counter(model="gpt-4o", messages=tool) == 12
 
     def test_empty_messages_count_zero(self):
         assert rh.token_counter(messages=[]) == 0
