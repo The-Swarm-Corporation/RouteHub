@@ -54,6 +54,13 @@ PROVIDERS = {
             native=True,
         ),
         Provider(
+            "bedrock",
+            None,
+            ("BEDROCK_API_KEY",),
+            ("BEDROCK_API_BASE",),
+            default_key="bedrock",
+        ),
+        Provider(
             "gemini",
             "https://generativelanguage.googleapis.com/v1beta/openai/",
             ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
