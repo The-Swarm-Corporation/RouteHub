@@ -314,6 +314,7 @@ class TestRequestShaping:
             model="gpt-4o",
             messages=USER,
             tools=[tool],
+            functions=[],
             tool_choice="required",
             parallel_tool_calls=False,
             client=client,
@@ -323,7 +324,35 @@ class TestRequestShaping:
             body["tools"] == [tool]
             and body["tool_choice"] == "required"
             and body["parallel_tool_calls"] is False
+            and "functions" not in body
         )
+
+    def test_empty_tool_lists_are_not_sent(self, mock_openai):
+        client, recorder = mock_openai(ok())
+        history = USER + [
+            {"role": "assistant", "content": "Hey", "tool_calls": []},
+            {"role": "user", "content": "More"},
+        ]
+        rh.completion(
+            model="gpt-4o",
+            messages=history,
+            tools=[],
+            functions=[],
+            tool_choice="auto",
+            function_call="auto",
+            client=client,
+        )
+        body = recorder.last_json
+        assert not {
+            "tools",
+            "functions",
+            "tool_choice",
+            "function_call",
+        } & set(body)
+        assert body["messages"][1] == {
+            "role": "assistant",
+            "content": "Hey",
+        }
 
     def test_cache_control_is_stripped_for_openai(self, mock_openai):
         client, recorder = mock_openai(ok())
