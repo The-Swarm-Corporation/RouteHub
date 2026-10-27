@@ -290,6 +290,8 @@ routehub.completion(model="gpt-5.4-mini", messages=messages, mock_response=Timeo
 
 `mock_response` returns a real `ChatCompletion`, or a stream when `stream=True`, without any network call or API key. Pass an exception to rehearse failure handling.
 
+For a runnable pytest walkthrough covering empty replies, sync/async streams, usage-only chunks, JSON parsing and a scoped network guard, see [Test response handling offline](docs/offline-testing.md).
+
 ## Configuration
 
 Every setting is a parameter of the call; nothing is configured globally.
