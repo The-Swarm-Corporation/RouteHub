@@ -6,7 +6,7 @@ import pytest
 from conftest import CATALOG
 
 import routehub as rh
-from routehub import registry
+from routehub import get_all_models, registry
 from routehub._http import httpx
 
 # Captured at collection, before the autouse fixture swaps in the fake catalog.
@@ -91,6 +91,20 @@ class TestLookups:
 
     def test_get_max_tokens(self):
         assert rh.get_max_tokens("claude-sonnet-4-6") == 128000
+
+    def test_variable_price_is_unknown(self, monkeypatch):
+        auto = {
+            "id": "openrouter/auto",
+            "name": "Auto Router",
+            "context_length": 2000000,
+            "pricing": {"prompt": "-1", "completion": "-1"},
+        }
+        monkeypatch.setattr(registry, "_fetch", lambda: [auto])
+        info = rh.get_model_info("openrouter/openrouter/auto")
+        listed = get_all_models._parse_openrouter([auto])[0]
+        for entry in (info, listed):
+            assert entry["input_cost_per_token"] is None
+            assert entry["output_cost_per_token"] is None
 
     def test_utils_module_mirrors_litellm_utils(self):
         from routehub.utils import (

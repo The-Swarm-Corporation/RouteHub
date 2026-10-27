@@ -347,12 +347,14 @@ def _price(value: Optional[str]) -> Optional[float]:
         value (Optional[str]): Price in USD per token, as a string.
 
     Returns:
-        Optional[float]: The price, or None when absent or unparseable.
+        Optional[float]: The price, or None when absent, unparseable or
+        negative, as OpenRouter's "-1" for a variable price is.
     """
     try:
-        return float(value) if value is not None else None
+        price = float(value)
     except (TypeError, ValueError):
         return None
+    return price if price >= 0 else None
 
 
 def _to_info(model_id: str, entry: dict) -> dict:

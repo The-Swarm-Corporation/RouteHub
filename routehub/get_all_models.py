@@ -115,12 +115,14 @@ def _price(value: Any, scale: float = 1.0) -> Optional[float]:
         scale (float): Divisor that converts the provider's unit to per token.
 
     Returns:
-        Optional[float]: The price per token, or None when absent.
+        Optional[float]: The price per token, or None when absent or
+        negative, as OpenRouter's "-1" for a variable price is.
     """
     try:
-        return float(value) / scale if value is not None else None
+        price = float(value) / scale
     except (TypeError, ValueError):
         return None
+    return price if price >= 0 else None
 
 
 def _iso_epoch(value: Optional[str]) -> Optional[int]:
