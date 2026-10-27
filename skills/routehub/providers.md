@@ -16,13 +16,13 @@ Prefix the model with its provider. The key is read from the first set variable 
 | Mistral | `mistral/mistral-large-latest` | `MISTRAL_API_KEY` | `MISTRAL_API_BASE` |
 | Cohere | `cohere/...` | `COHERE_API_KEY`, `CO_API_KEY` | none |
 | Fireworks | `fireworks_ai/accounts/fireworks/models/...` | `FIREWORKS_API_KEY`, `FIREWORKS_AI_API_KEY` | `FIREWORKS_API_BASE` |
-| Perplexity | `perplexity/sonar` | `PERPLEXITYAI_API_KEY`, `PERPLEXITY_API_KEY` | none |
-| Cerebras | `cerebras/...` | `CEREBRAS_API_KEY` | none |
-| DeepInfra | `deepinfra/...` | `DEEPINFRA_API_KEY` | none |
-| SambaNova | `sambanova/...` | `SAMBANOVA_API_KEY` | none |
+| Perplexity | `perplexity/sonar` | `PERPLEXITYAI_API_KEY`, `PERPLEXITY_API_KEY` | `PERPLEXITY_API_BASE` |
+| Cerebras | `cerebras/...` | `CEREBRAS_API_KEY` | `CEREBRAS_API_BASE` |
+| DeepInfra | `deepinfra/...` | `DEEPINFRA_API_KEY` | `DEEPINFRA_API_BASE` |
+| SambaNova | `sambanova/...` | `SAMBANOVA_API_KEY` | `SAMBANOVA_API_BASE` |
 | NVIDIA NIM | `nvidia_nim/...` | `NVIDIA_NIM_API_KEY` | `NVIDIA_NIM_API_BASE` |
-| Moonshot | `moonshot/...` | `MOONSHOT_API_KEY` | none |
-| Alibaba DashScope | `dashscope/...` | `DASHSCOPE_API_KEY` | none |
+| Moonshot | `moonshot/...` | `MOONSHOT_API_KEY` | `MOONSHOT_API_BASE` |
+| Alibaba DashScope | `dashscope/...` | `DASHSCOPE_API_KEY` | `DASHSCOPE_API_BASE` |
 | Hugging Face | `huggingface/...` | `HF_TOKEN`, `HUGGINGFACE_API_KEY` | none |
 | Ollama | `ollama/llama3`, `ollama_chat/llama3` | none | `OLLAMA_API_BASE` |
 | LM Studio | `lm_studio/...` | optional, `LM_STUDIO_API_KEY` | `LM_STUDIO_API_BASE` |

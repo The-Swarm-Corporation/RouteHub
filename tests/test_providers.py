@@ -86,6 +86,24 @@ def test_explicit_key_and_base_win(monkeypatch):
     assert base == "https://env.local/v1"
 
 
+@pytest.mark.parametrize(
+    "provider",
+    [
+        "cerebras",
+        "dashscope",
+        "deepinfra",
+        "moonshot",
+        "perplexity",
+        "sambanova",
+    ],
+)
+def test_base_variables_litellm_reads(monkeypatch, provider):
+    variable = f"{provider.upper()}_API_BASE"
+    monkeypatch.setenv(variable, "https://region.local/v1")
+    _, _, _, base = rh.get_llm_provider(f"{provider}/m")
+    assert base == "https://region.local/v1"
+
+
 def test_openai_uses_the_sdk_default_base():
     _, provider, key, base = rh.get_llm_provider("gpt-4o")
     assert (

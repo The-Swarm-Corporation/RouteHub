@@ -114,21 +114,25 @@ PROVIDERS = {
             "perplexity",
             "https://api.perplexity.ai",
             ("PERPLEXITYAI_API_KEY", "PERPLEXITY_API_KEY"),
+            ("PERPLEXITY_API_BASE",),
         ),
         Provider(
             "cerebras",
             "https://api.cerebras.ai/v1",
             ("CEREBRAS_API_KEY",),
+            ("CEREBRAS_API_BASE",),
         ),
         Provider(
             "deepinfra",
             "https://api.deepinfra.com/v1/openai",
             ("DEEPINFRA_API_KEY",),
+            ("DEEPINFRA_API_BASE",),
         ),
         Provider(
             "sambanova",
             "https://api.sambanova.ai/v1",
             ("SAMBANOVA_API_KEY",),
+            ("SAMBANOVA_API_BASE",),
         ),
         Provider(
             "nvidia_nim",
@@ -140,11 +144,13 @@ PROVIDERS = {
             "moonshot",
             "https://api.moonshot.ai/v1",
             ("MOONSHOT_API_KEY",),
+            ("MOONSHOT_API_BASE",),
         ),
         Provider(
             "dashscope",
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             ("DASHSCOPE_API_KEY",),
+            ("DASHSCOPE_API_BASE",),
         ),
         Provider(
             "huggingface",
