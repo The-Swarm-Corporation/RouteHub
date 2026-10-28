@@ -43,9 +43,7 @@ def _cached(key: tuple, build) -> Any:
         if client is not None:
             _clients.move_to_end(key)
             return client
-    client = build()
-    with _lock:
-        _clients[key] = client
+        client = _clients[key] = build()
         while len(_clients) > _MAX_CLIENTS:
             _clients.popitem(last=False)
     return client
