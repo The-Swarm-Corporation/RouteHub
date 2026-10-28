@@ -1182,6 +1182,27 @@ class TestCompletionThroughAnthropic:
             "effort": "high",
         }
 
+    def test_service_tier_reaches_claude(self, mock_http):
+        client, recorder = mock_http(
+            httpx.Response(
+                200,
+                json=message_response(
+                    [{"type": "text", "text": "x"}]
+                ),
+            )
+        )
+        for tier, sent in (("standard_only", True), ("flex", False)):
+            rh.completion(
+                model="claude-sonnet-4-6",
+                messages=messages(),
+                service_tier=tier,
+                drop_params=True,
+                client=client,
+            )
+            assert (
+                recorder.last_json.get("service_tier") == tier
+            ) is sent
+
     def test_provider_prefix_is_stripped(self, mock_http):
         client, recorder = mock_http(
             httpx.Response(

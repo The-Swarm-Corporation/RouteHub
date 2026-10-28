@@ -58,7 +58,6 @@ NATIVE_EXTRAS = frozenset(
         "top_k",
         "container",
         "mcp_servers",
-        "service_tier",
         "output_config",
         "context_management",
         "inference_geo",
@@ -545,6 +544,11 @@ def build_request(
         )
     if params.get("user"):
         body["metadata"] = {"user_id": params["user"]}
+    tier = params.get("service_tier")
+    if tier and (
+        not drop_params or tier in ("auto", "standard_only")
+    ):
+        body["service_tier"] = tier
     if params.get("stream"):
         body["stream"] = True
 
