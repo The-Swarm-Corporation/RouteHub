@@ -1057,14 +1057,14 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _mock_chunks(
-    model: str, content: str, include_usage: bool
+    model: str, content: str, usage: Optional[dict]
 ) -> List[Any]:
     """Build the chunks of a mocked streaming response.
 
     Args:
         model (str): Model name to report.
         content (str): The mocked reply.
-        include_usage (bool): Append a usage chunk.
+        usage (Optional[dict]): Usage for a trailing usage chunk.
 
     Returns:
         List[Any]: ChatCompletionChunks.
@@ -1104,19 +1104,10 @@ def _mock_chunks(
             }
         )
     )
-    if include_usage:
-        completion = _estimate_tokens(content)
+    if usage:
         chunks.append(
             ChatCompletionChunk.model_validate(
-                {
-                    **base,
-                    "choices": [],
-                    "usage": {
-                        "prompt_tokens": 0,
-                        "completion_tokens": completion,
-                        "total_tokens": completion,
-                    },
-                }
+                {**base, "choices": [], "usage": usage}
             )
         )
     return chunks
@@ -1145,11 +1136,26 @@ def _mock_completion(
     """
     if isinstance(mock_response, BaseException):
         raise mock_response
+    from routehub.tokenizer import _content_text
+
     content = str(mock_response)
+    prompt = sum(
+        _estimate_tokens(_content_text(m.get("content")))
+        for m in messages or []
+        if isinstance(m, dict)
+    )
+    completion = _estimate_tokens(content)
+    usage = {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": prompt + completion,
+    }
     if stream:
         from routehub.streaming import AsyncChatStream, ChatStream
 
-        chunks = _mock_chunks(model, content, include_usage)
+        chunks = _mock_chunks(
+            model, content, usage if include_usage else None
+        )
         if is_async:
 
             async def agen():
@@ -1161,14 +1167,6 @@ def _mock_completion(
 
     from openai.types.chat import ChatCompletion
 
-    from routehub.tokenizer import _content_text
-
-    prompt = sum(
-        _estimate_tokens(_content_text(m.get("content")))
-        for m in messages or []
-        if isinstance(m, dict)
-    )
-    completion = _estimate_tokens(content)
     return ChatCompletion.model_validate(
         {
             "id": f"chatcmpl-mock-{uuid.uuid4().hex}",
@@ -1185,11 +1183,7 @@ def _mock_completion(
                     },
                 }
             ],
-            "usage": {
-                "prompt_tokens": prompt,
-                "completion_tokens": completion,
-                "total_tokens": prompt + completion,
-            },
+            "usage": usage,
         }
     )
 

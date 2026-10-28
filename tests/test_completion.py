@@ -956,6 +956,18 @@ class TestMockResponse:
         )
         assert chunks[-1].usage is not None
 
+    def test_mock_stream_usage_matches_completion(self):
+        args = dict(
+            model="any-model", messages=USER, mock_response="a b c"
+        )
+        expected = rh.completion(**args).usage
+        stream = rh.completion(
+            **args,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        assert list(stream)[-1].usage == expected
+
     def test_mock_exception_is_raised(self):
         with pytest.raises(ValueError, match="boom"):
             rh.completion(
