@@ -376,7 +376,7 @@ def _to_info(model_id: str, entry: dict) -> dict:
     top = entry.get("top_provider") or {}
     context = entry.get("context_length") or top.get("context_length")
     max_output = top.get("max_completion_tokens")
-    vendor = model_id.split("/", 1)[0]
+    vendor = model_id.split("/", 1)[0].lstrip("~")
     provider = _PROVIDERS_BY_VENDOR.get(vendor, "openrouter")
     info = {
         "key": model_id,

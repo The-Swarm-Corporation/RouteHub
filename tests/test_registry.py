@@ -333,6 +333,40 @@ class TestPromptCaching:
         )
         assert rh.supports_prompt_caching("gemini/private") is True
 
+    @pytest.mark.parametrize(
+        "name, provider, caching",
+        [
+            ("claude-sonnet-latest", "anthropic", True),
+            (
+                "openrouter/~anthropic/claude-sonnet-latest",
+                "openrouter",
+                True,
+            ),
+            ("gemini-pro-latest", "gemini", False),
+        ],
+    )
+    def test_latest_aliases_keep_their_vendor(
+        self, monkeypatch, name, provider, caching
+    ):
+        by_id = {entry["id"]: entry for entry in CATALOG}
+        aliases = [
+            {
+                **by_id["anthropic/claude-sonnet-4.6"],
+                "id": "~anthropic/claude-sonnet-latest",
+            },
+            {
+                **by_id["google/gemini-2.5-pro"],
+                "id": "~google/gemini-pro-latest",
+            },
+        ]
+        monkeypatch.setattr(
+            registry, "_fetch", lambda: [*CATALOG, *aliases]
+        )
+        info = rh.get_model_info(name)
+        assert info["provider"] == provider
+        assert info["supports_prompt_caching"] is caching
+        assert rh.supports_prompt_caching(name) is caching
+
 
 class TestProviderKey:
     def test_provider_and_litellm_provider_match(self):
