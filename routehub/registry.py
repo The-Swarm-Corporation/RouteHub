@@ -624,9 +624,9 @@ def _lookup(
 ) -> Optional[Tuple[str, dict]]:
     """Find the model info for a model string.
 
-    Registered models win, then OpenRouter's catalog by exact name, then
-    the built-in table, then the closest vendor entry for a serving
-    provider's id.
+    Registered models win, then the built-in table of models OpenRouter
+    does not list, then OpenRouter's catalog by exact name, then the
+    closest vendor entry for a serving provider's id.
 
     Args:
         model (str): A bare or provider-prefixed model name.
@@ -638,14 +638,14 @@ def _lookup(
     found = _table_entry(_registered, model, custom_llm_provider)
     if found:
         return found
+    found = _table_entry(_BUILTIN, model, custom_llm_provider)
+    if found:
+        return found
     catalog = _ensure_catalog()
     for key in _candidates(model, custom_llm_provider):
         model_id = _aliases.get(key)
         if model_id is not None:
             return model_id, _to_info(model_id, catalog[model_id])
-    found = _table_entry(_BUILTIN, model, custom_llm_provider)
-    if found:
-        return found
     model_id = _fuzzy(model, custom_llm_provider)
     if model_id is not None:
         return model_id, _to_info(model_id, catalog[model_id])

@@ -263,6 +263,13 @@ class TestServingProviders:
 
 
 class TestEmbeddingModels:
+    def test_a_builtin_model_needs_no_catalog(self, catalog):
+        assert (
+            rh.get_model_info("text-embedding-3-small")["mode"]
+            == "embedding"
+        )
+        assert catalog["count"] == 0
+
     def test_builtin_embedding_models(self):
         info = rh.get_model_info("text-embedding-3-small")
         assert info["mode"] == "embedding"
