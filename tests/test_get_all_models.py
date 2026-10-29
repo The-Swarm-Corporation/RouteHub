@@ -522,6 +522,13 @@ class TestGetModel:
             == "api.openai.com/v1/models/gpt-5.4-mini"
         )
 
+    def test_a_fetched_model_is_cached(self, provider_api):
+        first = gam.get_model("openai", "gpt-5.4-mini")
+        calls = len(provider_api)
+
+        assert gam.get_model("openai", "gpt-5.4-mini") == first
+        assert len(provider_api) == calls
+
     def test_openrouter_includes_every_endpoint(self, provider_api):
         entry = gam.get_model(
             "openrouter", "anthropic/claude-sonnet-4.6"

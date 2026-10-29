@@ -397,7 +397,7 @@ get_model("openrouter", "anthropic/claude-sonnet-4.6")["endpoints"]  # every hos
 
 Sources: OpenRouter (no key needed), OpenAI, Anthropic, Gemini, Groq, xAI, DeepSeek, Mistral, Together, Fireworks, Cerebras, Cohere, and a local Ollama server when `OLLAMA_API_BASE` is set. Each entry has `id`, `provider`, `model`, `name`, `type`, `context_window`, `max_output_tokens`, `input_modalities`, `output_modalities`, `supports_vision`, `supports_function_calling`, `supports_reasoning`, `supports_structured_output`, `input_cost_per_token`, `output_cost_per_token`, `created`, `endpoints` and the provider's `raw` record, with `None` where a provider does not report a field.
 
-Results are cached per provider for five minutes, failures included, so an unavailable provider is retried once per window rather than on every call. Pass `refresh=True` to fetch again, or call `clear_cache()`. `aget_all_models` and `aget_models` are the async forms.
+Results are cached for five minutes, per provider and, for `get_model`, per model, failures included, so an unavailable provider is retried once per window rather than on every call. Pass `refresh=True` to the list functions to fetch again, or call `clear_cache()`, which also clears `get_model`. `aget_all_models` and `aget_models` are the async forms.
 
 ## Token counting
 

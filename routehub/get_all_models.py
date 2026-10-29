@@ -917,7 +917,7 @@ def _store(
 
 
 def clear_cache() -> None:
-    """Forget every cached model list so the next call fetches again."""
+    """Forget every cached model list and model so the next call fetches."""
     with _lock:
         _cache.clear()
 
@@ -1225,7 +1225,8 @@ def get_model(
 
     Falls back to searching the provider's model list when it has no
     per-model endpoint. For OpenRouter the entry includes every upstream
-    endpoint serving the model, with its own limits and prices.
+    endpoint serving the model, with its own limits and prices. The answer
+    is cached for CACHE_TTL_SECONDS, as the model lists are.
 
     Args:
         provider (str): RouteHub provider name.
@@ -1254,6 +1255,12 @@ def get_model(
             ),
             None,
         )
+    cache_key = (f"{provider}/{model}", key)
+    hit = _cached(cache_key)
+    if hit is not None:
+        return hit[0] if hit else None
+
+    entry = None
     try:
         response = httpx.get(
             _url(source, source.detail_url.format(model=model)),
@@ -1261,19 +1268,19 @@ def get_model(
             timeout=timeout,
             follow_redirects=True,
         )
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-        record = loads(response.content)
-        if source.detail_key:
-            record = record.get(source.detail_key) or {}
-        entries = (source.detail_parse or source.parse)([record])
-        return entries[0] if entries else None
+        if response.status_code != 404:
+            response.raise_for_status()
+            record = loads(response.content)
+            if source.detail_key:
+                record = record.get(source.detail_key) or {}
+            entries = (source.detail_parse or source.parse)([record])
+            entry = entries[0] if entries else None
     except Exception as error:
         logger.warning(
             f"Could not fetch {provider} model {model!r}: {_describe(error)}"
         )
-        return None
+    _store(cache_key, [entry] if entry is not None else [])
+    return entry
 
 
 def configured_providers() -> List[str]:
