@@ -658,21 +658,25 @@ def messages_url(api_base: str) -> str:
     return base + "/v1/messages"
 
 
-def headers(api_key: str, extra_headers: Optional[dict]) -> dict:
+def headers(
+    api_key: Optional[str], extra_headers: Optional[dict]
+) -> dict:
     """Build the request headers.
 
     Args:
-        api_key (str): Anthropic API key.
+        api_key (Optional[str]): Anthropic API key; left out when unset
+            or empty, so a caller's client can send its own.
         extra_headers (Optional[dict]): Additional headers, such as anthropic-beta.
 
     Returns:
         dict: The headers to send.
     """
     result = {
-        "x-api-key": api_key,
         "anthropic-version": ANTHROPIC_VERSION,
         "content-type": "application/json",
     }
+    if api_key:
+        result["x-api-key"] = api_key
     if extra_headers:
         result.update(extra_headers)
     return result
