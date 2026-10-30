@@ -13,6 +13,7 @@ from routehub.main import (
     _anthropic_prepare,
     _anthropic_send,
     _build_call,
+    _checked_client,
     _openai_client,
     _openai_request,
     _split_args,
@@ -78,6 +79,7 @@ class BatchJob:
             )
         )
         if self.client is not None:
+            _checked_client(self.client, False)
             return
         if self.provider == "anthropic":
             self.client = http_client(is_async=False, ssl_verify=True)
@@ -283,7 +285,7 @@ def batched_completions(
             }
         )
     if call.provider == "anthropic":
-        client = call.client or http_client(
+        client = _checked_client(call.client, False) or http_client(
             is_async=False,
             ssl_verify=call.ssl_verify,
             keepalive_expiry=call.keepalive_expiry,
