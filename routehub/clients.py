@@ -6,6 +6,7 @@ from collections import OrderedDict
 from typing import Any, Optional, Union
 
 _MAX_CLIENTS = 64
+_MAX_CONNECTIONS = 1000
 _lock = threading.Lock()
 _clients: "OrderedDict[tuple, Any]" = OrderedDict()
 
@@ -52,7 +53,7 @@ def _cached(key: tuple, build) -> Any:
 
 
 def _limits(keepalive_expiry: float) -> Any:
-    """Build pool limits that keep idle connections open between calls.
+    """Build pool limits that keep every connection a burst opened alive.
 
     Args:
         keepalive_expiry (float): Seconds an idle connection stays pooled.
@@ -63,8 +64,8 @@ def _limits(keepalive_expiry: float) -> Any:
     from routehub._http import httpx
 
     return httpx.Limits(
-        max_connections=1000,
-        max_keepalive_connections=100,
+        max_connections=_MAX_CONNECTIONS,
+        max_keepalive_connections=_MAX_CONNECTIONS,
         keepalive_expiry=keepalive_expiry,
     )
 
