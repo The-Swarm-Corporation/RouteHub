@@ -264,6 +264,31 @@ class TestBatches:
         )
         assert results[1].choices[0].message.content == "Second"
 
+    def test_claude_batch_poll_retries_an_overloaded_api(
+        self, mock_http
+    ):
+        overloaded = httpx.Response(
+            529,
+            json={
+                "type": "error",
+                "error": {
+                    "type": "overloaded_error",
+                    "message": "Overloaded",
+                },
+            },
+        )
+        client, recorder = mock_http(
+            overloaded,
+            httpx.Response(200, json={"processing_status": "ended"}),
+            overloaded,
+        )
+        job = rh.BatchJob("anthropic", "msgbatch_1", client)
+        assert job.status() == "ended"
+        assert len(recorder.requests) == 2
+        with pytest.raises(rh.ServiceUnavailableError):
+            job.status()
+        assert len(recorder.requests) == 5
+
     def test_groq_batch_runs_on_groq_batch_api(self, mock_openai):
         client, recorder = mock_openai(
             httpx.Response(200, json={"id": "file-in"}),
