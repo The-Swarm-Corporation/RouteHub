@@ -658,6 +658,35 @@ class TestBuildRequest:
         }
 
     @pytest.mark.parametrize(
+        "thinking, forced",
+        [
+            ({"type": "disabled"}, True),
+            ({"type": "enabled", "budget_tokens": 1024}, False),
+            ({"type": "adaptive"}, False),
+        ],
+    )
+    def test_json_tool_is_forced_unless_thinking_is_on(
+        self, thinking, forced
+    ):
+        body = build(
+            [{"role": "user", "content": "Hi"}],
+            extras={"thinking": thinking},
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "x",
+                    "schema": {"type": "object"},
+                },
+            },
+        )
+        assert body["thinking"] == thinking
+        assert body["tool_choice"] == (
+            {"type": "tool", "name": anthropic.JSON_TOOL_NAME}
+            if forced
+            else {"type": "auto"}
+        )
+
+    @pytest.mark.parametrize(
         "choice",
         ["required", {"type": "function", "function": {"name": "a"}}],
     )
