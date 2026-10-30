@@ -365,6 +365,34 @@ class TestRequestShaping:
             "the caller's messages must not be mutated"
         )
 
+    def test_function_cache_control_is_stripped_for_openai(
+        self, mock_openai
+    ):
+        client, recorder = mock_openai(ok())
+        function = {
+            "name": "a",
+            "parameters": {"type": "object"},
+            "cache_control": {"type": "ephemeral"},
+        }
+        rh.completion(
+            model="gpt-4o",
+            messages=USER,
+            tools=[{"type": "function", "function": function}],
+            client=client,
+        )
+        tool = recorder.last_json["tools"][0]
+        assert "cache_control" not in tool["function"]
+        rh.completion(
+            model="gpt-4o",
+            messages=USER,
+            functions=[function],
+            client=client,
+        )
+        assert (
+            "cache_control" not in recorder.last_json["functions"][0]
+        )
+        assert "cache_control" in function
+
     def test_cache_control_is_kept_for_openrouter(self, mock_openai):
         client, recorder = mock_openai(ok())
         messages = [
