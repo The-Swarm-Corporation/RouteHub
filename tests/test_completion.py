@@ -795,6 +795,25 @@ class TestAsync:
         with pytest.raises(rh.BadRequestError):
             await rh.acompletion(model="gpt-4o", messages=[])
 
+    @pytest.mark.parametrize("model", ["gpt-4o", "claude-sonnet-4-6"])
+    async def test_client_of_the_wrong_kind_is_refused_unsent(
+        self, mock_openai, mock_http, model
+    ):
+        build = (
+            mock_http if model.startswith("claude") else mock_openai
+        )
+        sync_client, sync_recorder = build(ok())
+        async_client, async_recorder = build(ok(), is_async=True)
+        with pytest.raises(rh.BadRequestError):
+            await rh.acompletion(
+                model=model, messages=USER, client=sync_client
+            )
+        with pytest.raises(rh.BadRequestError):
+            rh.completion(
+                model=model, messages=USER, client=async_client
+            )
+        assert sync_recorder.requests == async_recorder.requests == []
+
 
 class TestErrors:
     @pytest.mark.parametrize(

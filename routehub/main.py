@@ -580,6 +580,30 @@ def _create_kwargs(
     return kwargs
 
 
+def _checked_client(client: Any, is_async: bool) -> Any:
+    """Return a caller's client, refusing one of the wrong kind.
+
+    Args:
+        client (Any): The client passed as client=, or None.
+        is_async (bool): Whether the call is async.
+
+    Returns:
+        Any: The client, or None when none was passed.
+    """
+    post = getattr(client, "post", None)
+    if post is None or inspect.iscoroutinefunction(post) == is_async:
+        return client
+    from routehub.exceptions import BadRequestError
+
+    raise BadRequestError(
+        "client= must be an async client, such as openai.AsyncOpenAI "
+        "or httpx.AsyncClient, for an async call."
+        if is_async
+        else "client= must be a sync client, such as openai.OpenAI "
+        "or httpx.Client, for a sync call."
+    )
+
+
 def _openai_client(call: _Call, is_async: bool) -> Any:
     """Return the caller's client or a cached SDK client.
 
@@ -590,7 +614,7 @@ def _openai_client(call: _Call, is_async: bool) -> Any:
     Returns:
         Any: An OpenAI SDK client.
     """
-    if call.client is not None:
+    if _checked_client(call.client, is_async) is not None:
         return call.client
     return openai_client(
         call.provider,
@@ -980,7 +1004,7 @@ def _anthropic_complete(call: _Call) -> Any:
     from routehub.streaming import ChatStream
 
     url, headers, body, json_mode = _anthropic_prepare(call)
-    client = call.client or http_client(
+    client = _checked_client(call.client, False) or http_client(
         is_async=False,
         ssl_verify=call.ssl_verify,
         keepalive_expiry=call.keepalive_expiry,
@@ -1016,7 +1040,7 @@ async def _anthropic_acomplete(call: _Call) -> Any:
     from routehub.streaming import AsyncChatStream
 
     url, headers, body, json_mode = _anthropic_prepare(call)
-    client = call.client or http_client(
+    client = _checked_client(call.client, True) or http_client(
         is_async=True,
         ssl_verify=call.ssl_verify,
         keepalive_expiry=call.keepalive_expiry,
@@ -1534,7 +1558,9 @@ def _embedding_request(
             model=model,
         )
     retries = options["num_retries"]
-    client = options["client"] or openai_client(
+    client = _checked_client(
+        options["client"], is_async
+    ) or openai_client(
         provider,
         api_key,
         api_base,
