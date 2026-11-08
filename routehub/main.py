@@ -404,12 +404,17 @@ def _strip_cache_control(item: Any) -> Any:
     """Return a copy of a tool or content block without cache_control.
 
     Args:
-        item (Any): A tool definition or content block.
+        item (Any): A tool definition, legacy function or content block.
 
     Returns:
-        Any: The item without the marker.
+        Any: The item without the marker, on it or on its function.
     """
-    if isinstance(item, dict) and "cache_control" in item:
+    if not isinstance(item, dict):
+        return item
+    function = item.get("function")
+    if isinstance(function, dict) and "cache_control" in function:
+        item = {**item, "function": _strip_cache_control(function)}
+    if "cache_control" in item:
         return {k: v for k, v in item.items() if k != "cache_control"}
     return item
 
@@ -538,10 +543,11 @@ def _openai_request(call: _Call) -> Tuple[dict, dict]:
     if not request.get("tools") and not request.get("functions"):
         request.pop("tool_choice", None)
         request.pop("parallel_tool_calls", None)
-    if request.get("tools") and not keep_markers:
-        request["tools"] = [
-            _strip_cache_control(t) for t in request["tools"]
-        ]
+    for key in ("tools", "functions"):
+        if request.get(key) and not keep_markers:
+            request[key] = [
+                _strip_cache_control(t) for t in request[key]
+            ]
     _drop_rejected(call, request, "reasoning_effort")
 
     extra_body = dict(call.extra_body or {})
