@@ -1198,6 +1198,29 @@ class TestCompletionThroughAnthropic:
         )
         assert recorder.last_json["model"] == "claude-sonnet-4-6"
 
+    def test_callers_client_supplies_the_key(
+        self, mock_http, monkeypatch
+    ):
+        monkeypatch.delenv("ANTHROPIC_API_KEY")
+        client, recorder = mock_http(
+            httpx.Response(
+                200,
+                json=message_response(
+                    [{"type": "text", "text": "Hello"}]
+                ),
+            )
+        )
+        client.headers["x-api-key"] = "client-key"
+        response = rh.completion(
+            model="claude-sonnet-4-6",
+            messages=messages(),
+            client=client,
+        )
+        assert response.choices[0].message.content == "Hello"
+        assert (
+            recorder.requests[0].headers["x-api-key"] == "client-key"
+        )
+
     def test_streaming_call(self, mock_http):
         client, _ = mock_http(
             httpx.Response(
