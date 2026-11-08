@@ -120,6 +120,13 @@ def test_embedding_needs_a_key(monkeypatch):
         rh.embedding(model="text-embedding-3-small", input="a")
 
 
+def test_embedding_needs_a_base_url():
+    with pytest.raises(
+        rh.BadRequestError, match="OPENAI_LIKE_API_BASE"
+    ):
+        rh.embedding(model="openai_like/bge-m3", input="a")
+
+
 async def test_aembedding(mock_openai):
     client, recorder = mock_openai(
         httpx.Response(200, json=embedding_body([0.5])), is_async=True

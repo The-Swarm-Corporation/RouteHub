@@ -592,6 +592,15 @@ def _openai_client(call: _Call, is_async: bool) -> Any:
     """
     if call.client is not None:
         return call.client
+    if not call.api_base and call.provider != "openai":
+        from routehub.exceptions import BadRequestError
+
+        names = " or ".join(PROVIDERS[call.provider].base_env)
+        raise BadRequestError(
+            f"No base URL for provider {call.provider!r}. Set {names}, or pass api_base.",
+            llm_provider=call.provider,
+            model=call.model,
+        )
     return openai_client(
         call.provider,
         call.api_key,
@@ -1523,6 +1532,17 @@ def _embedding_request(
     if PROVIDERS[provider].native:
         raise BadRequestError(
             f"{provider} has no embeddings API.",
+            llm_provider=provider,
+            model=model,
+        )
+    if (
+        not api_base
+        and provider != "openai"
+        and options["client"] is None
+    ):
+        names = " or ".join(PROVIDERS[provider].base_env)
+        raise BadRequestError(
+            f"No base URL for provider {provider!r}. Set {names}, or pass api_base.",
             llm_provider=provider,
             model=model,
         )

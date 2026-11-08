@@ -131,6 +131,14 @@ class TestBasics:
                 model="groq/llama-3.3-70b-versatile", messages=USER
             )
 
+    def test_missing_base_url_fails_before_any_request(self):
+        with pytest.raises(
+            rh.BadRequestError, match="HOSTED_VLLM_API_BASE"
+        ):
+            rh.completion(
+                model="hosted_vllm/llama-3.1-8b", messages=USER
+            )
+
     def test_reasoning_effort_signature_lists_values(self):
         annotation = (
             inspect.signature(rh.completion)
