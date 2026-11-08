@@ -3,7 +3,9 @@
 import functools
 import inspect
 import json
+import threading
 import typing
+from concurrent.futures import ThreadPoolExecutor
 
 import openai
 import pytest
@@ -1142,6 +1144,32 @@ class TestClients:
         )
         assert a is b and a is not c
         assert a.max_retries == 4 and c.max_retries == 1
+
+    def test_concurrent_first_calls_share_one_client(
+        self, monkeypatch
+    ):
+        from routehub import clients
+
+        clients._clients.clear()
+        both_building = threading.Barrier(2, timeout=0.2)
+        real = httpx.Client
+
+        def client(*args, **kwargs):
+            try:
+                both_building.wait()
+            except threading.BrokenBarrierError:
+                pass
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(httpx, "Client", client)
+        with ThreadPoolExecutor(2) as pool:
+            a, b = pool.map(
+                lambda _: clients.http_client(
+                    is_async=False, ssl_verify=True
+                ),
+                range(2),
+            )
+        assert a is b
 
     def test_clients_keep_idle_connections_for_a_minute(self):
         from routehub import clients
