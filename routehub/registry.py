@@ -150,6 +150,7 @@ _bare_names: List[str] = []
 _catalog_vendors: frozenset = frozenset()
 _info_cache: Dict[str, dict] = {}
 _expires_at = 0.0
+_use_fresh_disk_cache = True
 _registered: Dict[str, dict] = {}
 
 __all__ = [
@@ -212,8 +213,13 @@ def _save_cache(entries: List[dict]) -> None:
         logger.debug(f"Could not write the model cache: {error}")
 
 
-def _load_cache() -> List[dict]:
+def _load_cache(max_age: Optional[float] = None) -> List[dict]:
     """Read the last catalog written to disk.
+
+    Args:
+        max_age (Optional[float]): Read the file only when it was
+            written less than this many seconds ago, and without the
+            staleness warning. None reads it at any age.
 
     Returns:
         List[dict]: The raw entries, or an empty list when there are none.
@@ -222,6 +228,10 @@ def _load_cache() -> List[dict]:
     if path is None:
         return []
     try:
+        if max_age is not None and not (
+            0 <= time.time() - os.path.getmtime(path) < max_age
+        ):
+            return []
         with open(path, "rb") as f:
             raw = f.read()
         from routehub._json import loads
@@ -229,7 +239,7 @@ def _load_cache() -> List[dict]:
         entries = loads(raw).get("data") or []
     except Exception:
         return []
-    if entries:
+    if entries and max_age is None:
         logger.warning(
             f"Using the model catalog cached at {path}; capability "
             "data may be stale until OpenRouter is reachable."
@@ -238,11 +248,19 @@ def _load_cache() -> List[dict]:
 
 
 def _fetch() -> List[dict]:
-    """Download OpenRouter's model list, falling back to the disk cache.
+    """Load OpenRouter's model list from a fresh disk cache or the network.
+
+    A disk copy written less than CACHE_TTL_SECONDS ago is used without
+    a network call until clear_model_cache is called. Otherwise the
+    list is downloaded, falling back to the disk copy at any age.
 
     Returns:
         List[dict]: The raw model entries, or an empty list on failure.
     """
+    if _use_fresh_disk_cache:
+        entries = _load_cache(max_age=CACHE_TTL_SECONDS)
+        if entries:
+            return entries
     from routehub._http import httpx
 
     try:
@@ -332,12 +350,13 @@ def _ensure_catalog() -> Dict[str, dict]:
 def clear_model_cache() -> None:
     """Forget the cached OpenRouter list so the next lookup fetches again."""
     global _catalog, _aliases, _bare_names, _catalog_vendors
-    global _expires_at
+    global _expires_at, _use_fresh_disk_cache
     with _lock:
         _catalog, _aliases, _bare_names = {}, {}, []
         _catalog_vendors = frozenset()
         _info_cache.clear()
         _expires_at = 0.0
+        _use_fresh_disk_cache = False
 
 
 def _price(value: Optional[str]) -> Optional[float]:

@@ -1,6 +1,7 @@
 """Model metadata from the OpenRouter catalog."""
 
 import os
+import time
 
 import pytest
 from conftest import CATALOG
@@ -401,6 +402,29 @@ class TestDiskCache:
         registry.clear_model_cache()
         assert rh.supports_vision("gpt-5.4-mini") is True
         assert rh.get_max_tokens("claude-sonnet-4-6") == 128000
+
+    def test_fresh_disk_cache_skips_the_network(self, monkeypatch):
+        monkeypatch.setattr(httpx, "get", self.serve)
+        REAL_FETCH()
+        urls = []
+
+        def unreachable(url, **kwargs):
+            urls.append(url)
+            raise httpx.ConnectTimeout("unreachable")
+
+        monkeypatch.setattr(httpx, "get", unreachable)
+        monkeypatch.setattr(registry, "_fetch", REAL_FETCH)
+        monkeypatch.setattr(registry, "_use_fresh_disk_cache", True)
+        assert rh.get_max_tokens("claude-sonnet-4-6") == 128000
+        assert urls == []
+        stale = time.time() - registry.CACHE_TTL_SECONDS
+        os.utime(registry._cache_path(), (stale, stale))
+        assert len(REAL_FETCH()) == len(CATALOG)
+        assert len(urls) == 1
+        os.utime(registry._cache_path())
+        rh.clear_model_cache()
+        assert rh.get_max_tokens("claude-sonnet-4-6") == 128000
+        assert len(urls) == 2
 
     def test_no_disk_cache_means_unknown(self, monkeypatch):
         monkeypatch.setattr(registry, "_fetch", REAL_FETCH)
