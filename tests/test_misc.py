@@ -9,6 +9,7 @@ import pytest
 
 import routehub as rh
 from routehub import exceptions, tokenizer
+from routehub._http import httpx
 
 
 class TestJson:
@@ -223,6 +224,35 @@ class TestExceptions:
             type(exceptions.exception_for_status(status, "msg"))
             is cls
         )
+
+    def test_claude_context_limit_is_a_context_window_error(
+        self, mock_http
+    ):
+        message = (
+            "input length and `max_tokens` exceed context limit: "
+            "188240 + 21333 > 200000, decrease input length or "
+            "`max_tokens` and try again"
+        )
+        client, _ = mock_http(
+            httpx.Response(
+                400,
+                json={
+                    "type": "error",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": message,
+                    },
+                },
+            )
+        )
+        with pytest.raises(rh.ContextWindowExceededError) as raised:
+            rh.completion(
+                model="claude-sonnet-4-6",
+                messages=[{"role": "user", "content": "Hi"}],
+                client=client,
+            )
+        assert raised.value.status_code == 400
+        assert raised.value.llm_provider == "anthropic"
 
     def test_map_exception_leaves_other_errors_alone(self):
         error = KeyError("x")

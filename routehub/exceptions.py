@@ -14,6 +14,7 @@ _CONTEXT_WINDOW_PHRASES = (
     "context length",
     "context_length_exceeded",
     "context window",
+    "context limit",
     "maximum context",
     "prompt is too long",
     "too many tokens",
