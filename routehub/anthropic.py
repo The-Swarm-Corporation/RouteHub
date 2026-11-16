@@ -1112,11 +1112,14 @@ class StreamTranslator:
 _ERROR_STATUS = {
     "invalid_request_error": 400,
     "authentication_error": 401,
+    "billing_error": 402,
     "permission_error": 403,
     "not_found_error": 404,
+    "conflict_error": 409,
     "request_too_large": 413,
     "rate_limit_error": 429,
     "api_error": 500,
+    "timeout_error": 504,
     "overloaded_error": 529,
 }
 
