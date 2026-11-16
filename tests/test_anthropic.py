@@ -355,6 +355,27 @@ class TestBuildRequest:
             == expected
         )
 
+    @pytest.mark.parametrize(
+        "function_call, expected",
+        [
+            ("auto", {"type": "auto"}),
+            ("none", {"type": "none"}),
+            ({"name": "a"}, {"type": "tool", "name": "a"}),
+        ],
+    )
+    def test_legacy_function_call_values(
+        self, function_call, expected
+    ):
+        body = build(
+            [{"role": "user", "content": "Go"}],
+            functions=[
+                {"name": "a", "parameters": {"type": "object"}}
+            ],
+            function_call=function_call,
+        )
+        assert body["tools"][0]["name"] == "a"
+        assert body["tool_choice"] == expected
+
     def test_reasoning_effort_becomes_thinking_budget(self):
         body = build(
             [{"role": "user", "content": "Think"}],
