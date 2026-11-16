@@ -1090,6 +1090,28 @@ class TestStreamTranslation:
                 },
             )
 
+    @pytest.mark.parametrize(
+        "kind, status",
+        [
+            ("billing_error", 402),
+            ("conflict_error", 409),
+            ("timeout_error", 504),
+        ],
+    )
+    def test_error_event_matches_the_http_error(self, kind, status):
+        error = {"type": kind, "message": "failed"}
+        response = httpx.Response(
+            status,
+            json={"type": "error", "error": error},
+            request=httpx.Request(
+                "POST", "https://api.anthropic.com/v1/messages"
+            ),
+        )
+        direct = anthropic.response_error(response, "m")
+        streamed = anthropic.stream_error(error, "m")
+        assert type(streamed) is type(direct)
+        assert streamed.status_code == direct.status_code == status
+
     def test_sse_parser_handles_comments_and_multiline_data(self):
         lines = [
             ": keepalive",
