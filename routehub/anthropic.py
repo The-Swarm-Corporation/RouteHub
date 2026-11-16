@@ -556,8 +556,11 @@ def build_request(
         ]
     if tools:
         body["tools"] = _translate_tools(tools)
+    requested = params.get("tool_choice") or params.get(
+        "function_call"
+    )
     choice = _translate_tool_choice(
-        params.get("tool_choice"), params.get("parallel_tool_calls")
+        requested, params.get("parallel_tool_calls")
     )
     if choice and tools:
         always = _rejects_forced_tool_choice(model)
@@ -569,7 +572,7 @@ def build_request(
 
                 raise UnsupportedParamsError(
                     f"{model} does not accept a forced tool_choice "
-                    f"({params.get('tool_choice')!r})"
+                    f"({requested!r})"
                     f"{'' if always else ' with thinking on'}. Use "
                     "tool_choice='auto', or set drop_params=True to "
                     "send 'auto' instead.",
