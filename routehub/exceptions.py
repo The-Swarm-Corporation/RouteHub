@@ -122,6 +122,12 @@ class NotFoundError(_GateStatusError, openai.NotFoundError):
     status_code_default = 404
 
 
+class ConflictError(_GateStatusError, openai.ConflictError):
+    """The request conflicts with the resource's current state (409)."""
+
+    status_code_default = 409
+
+
 class UnprocessableEntityError(
     _GateStatusError, openai.UnprocessableEntityError
 ):
@@ -210,6 +216,7 @@ _BY_STATUS = {
     401: AuthenticationError,
     403: PermissionDeniedError,
     404: NotFoundError,
+    409: ConflictError,
     413: ContextWindowExceededError,
     422: UnprocessableEntityError,
     429: RateLimitError,
@@ -222,6 +229,7 @@ __all__ = [
     "APIError",
     "AuthenticationError",
     "BadRequestError",
+    "ConflictError",
     "ContentPolicyViolationError",
     "ContextWindowExceededError",
     "InternalServerError",

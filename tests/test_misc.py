@@ -176,6 +176,7 @@ class TestExceptions:
             (rh.ContextWindowExceededError, openai.BadRequestError),
             (rh.RateLimitError, openai.RateLimitError),
             (rh.NotFoundError, openai.NotFoundError),
+            (rh.ConflictError, openai.ConflictError),
             (rh.InternalServerError, openai.InternalServerError),
             (rh.ServiceUnavailableError, openai.InternalServerError),
             (rh.Timeout, openai.APITimeoutError),
@@ -212,6 +213,7 @@ class TestExceptions:
         [
             (400, rh.BadRequestError),
             (401, rh.AuthenticationError),
+            (409, rh.ConflictError),
             (413, rh.ContextWindowExceededError),
             (418, rh.APIError),
             (502, rh.InternalServerError),
@@ -223,6 +225,21 @@ class TestExceptions:
             type(exceptions.exception_for_status(status, "msg"))
             is cls
         )
+
+    def test_map_exception_keeps_a_conflict_an_sdk_conflict(self):
+        from routehub._http import httpx
+
+        response = httpx.Response(
+            409,
+            request=httpx.Request("POST", "https://api.invalid"),
+        )
+        error = openai.ConflictError(
+            "Another request is running", response=response, body=None
+        )
+        mapped = exceptions.map_exception(error, "openai", "gpt-4o")
+        assert isinstance(mapped, openai.ConflictError)
+        assert mapped.status_code == 409
+        assert mapped.llm_provider == "openai"
 
     def test_map_exception_leaves_other_errors_alone(self):
         error = KeyError("x")
