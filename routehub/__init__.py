@@ -44,6 +44,7 @@ _LAZY = {
     "APIConnectionError": "routehub.exceptions",
     "AuthenticationError": "routehub.exceptions",
     "BadRequestError": "routehub.exceptions",
+    "ConflictError": "routehub.exceptions",
     "ContentPolicyViolationError": "routehub.exceptions",
     "ContextWindowExceededError": "routehub.exceptions",
     "InternalServerError": "routehub.exceptions",
